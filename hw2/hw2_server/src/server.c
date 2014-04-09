@@ -1,94 +1,148 @@
-#include <netinet/in.h>    // for sockaddr_in
-#include <sys/types.h>    // for socket
-#include <sys/socket.h>    // for socket
+/*
+ * File:   main.c
+ * Author: starlight36
+ *
+ * Created on 2012年9月19日, 下午8:45
+ */
+
 #include <stdio.h>        // for printf
 #include <stdlib.h>        // for exit
 #include <string.h>        // for bzero
-/*
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-*/
-#define HELLO_WORLD_SERVER_PORT    47789
-#define LENGTH_OF_LISTEN_QUEUE 20
+#include <netinet/in.h>    // for sockaddr_in
+#include <sys/types.h>    // for socket
+#include <sys/socket.h>    // for socket
+#include <sys/stat.h>
+#include <pthread.h>
+
+#define SERVER_PORT 47789
+#define LISTEN_QUEUE_LENGTH 20
 #define BUFFER_SIZE 1024
-#define FILE_NAME_MAX_SIZE 512
+#define MAX_THREAD_NUM 5
 
-int main(int argc, char **argv)
-{
-    //设置一个socket地址结构server_addr,代表服务器internet地址, 端口
-    struct sockaddr_in server_addr;
-    bzero(&server_addr,sizeof(server_addr)); //把一段内存区的内容全部设置为0
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
-    server_addr.sin_port = htons(HELLO_WORLD_SERVER_PORT);
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
-    //创建用于internet的流协议(TCP)socket,用server_socket代表服务器socket
-    int server_socket = socket(PF_INET,SOCK_STREAM,0);
-    if( server_socket < 0)
-    {
-        printf("Create Socket Failed!");
-        exit(1);
-    }
+int thread_count = 0;
+pthread_t threads[MAX_THREAD_NUM];
+
+/**
+ * 接收数据的执行函数
+ * @param conn_socket
+ */
+int recv_data(int conn_socket);
+
+
+/*
+ * 主方法
+ */
+int main(int argc, char** argv)
 {
-   int opt =1;
-   setsockopt(server_socket,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
+	// 建立Socket
+	int server_socket = socket(PF_INET, SOCK_STREAM, 0);
+	if (server_socket < 0) {
+		printf("Socket create failed.\n");
+		return EXIT_FAILURE;
+	}
+
+	{
+		int opt = 1;
+		setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof (opt));
+	}
+
+	// 设置服务器端监听套接字参数
+	struct sockaddr_in server_addr;
+	bzero(&server_addr, sizeof (server_addr));
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+	server_addr.sin_port = htons(SERVER_PORT);
+	// 绑定端口
+	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof (server_addr)))
+	{
+		printf("Bind port %d failed.\n", SERVER_PORT);
+		return EXIT_FAILURE;
+	}
+
+	// 开始监听
+	if (listen(server_socket, LISTEN_QUEUE_LENGTH))
+	{
+		 printf("Server Listen Failed!");
+		 return EXIT_FAILURE;
+	}
+
+	// 开始处理客户端连接
+	bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
+	while (1)
+	{
+		struct sockaddr_in client_addr;
+		socklen_t length = sizeof(client_addr);
+
+		// 建立客户端连接
+		int client_conn = accept(server_socket, (struct sockaddr*) &client_addr, &length);
+		if (client_conn < 0)
+		{
+			printf("Server Accept Failed!\n");
+			return EXIT_FAILURE;
+		}else{
+			puts("client found!");
+		}
+
+		// 新建线程, 使用新线程与客户端交互
+		int pthread_err = pthread_create(threads + (thread_count++), NULL, (void *)recv_data, (void *)client_conn);
+		if (pthread_err != 0)
+		{
+			printf("Create thread Failed!\n");
+			return EXIT_FAILURE;
+		}
+
+	}
+	close(server_socket);
+	return (EXIT_SUCCESS);
 }
 
-    //把socket和socket地址结构联系起来
-    if( bind(server_socket,(struct sockaddr*)&server_addr,sizeof(server_addr)))
+int recv_data(int conn_socket)
+{
+	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE], num_str[88];
+	char auth_passwd[] = "AUTH secretpassword\n";
+	int port_num = 56152;
+	bzero(buffer, BUFFER_SIZE);
+	bzero(msg, BUFFER_SIZE);
+
+//	int length = 0;
+//	while (length = recv(conn_socket, buffer, BUFFER_SIZE, MSG_WAITALL))
+//	{
+//		if (length < 0)
+//		{
+//			printf("Server Recieve Data Failed! code %d\n", length);
+//		}
+//		printf("%s", buffer);
+//		bzero(buffer, BUFFER_SIZE);
+//
+//	}
+
+    //Receive a reply from the server
+    //puts(server_reply);
+    if( recv(conn_socket , buffer , BUFFER_SIZE , 0) < 0)
     {
-        printf("Server Bind Port : %d Failed!", HELLO_WORLD_SERVER_PORT);
-        exit(1);
+        puts("server recv failed");
     }
 
-    //server_socket用于监听
-    if ( listen(server_socket, LENGTH_OF_LISTEN_QUEUE) )
-    {
-        printf("Server Listen Failed!");
-        exit(1);
-    }
-    while (1) //服务器端要一直运行
-    {
-        //定义客户端的socket地址结构client_addr
-        struct sockaddr_in client_addr;
-        socklen_t length = sizeof(client_addr);
-
-        //接受一个到server_socket代表的socket的一个连接
-        //如果没有连接请求,就等待到有连接请求--这是accept函数的特性
-        //accept函数返回一个新的socket,这个socket(new_server_socket)用于同连接到的客户的通信
-        //new_server_socket代表了服务器和客户端之间的一个通信通道
-        //accept函数把连接到的客户端信息填写到客户端的socket地址结构client_addr中
-        int new_server_socket = accept(server_socket,(struct sockaddr*)&client_addr,&length);
-        if ( new_server_socket < 0)
+    if(memcmp(auth_passwd, buffer, min(sizeof(auth_passwd), sizeof(buffer))) == 0){
+    	sprintf(msg, "CONNECT threemileisland.cs.dartmouth.edu %d networks\n"
+    			, port_num);;
+        if( send(conn_socket , msg , strlen(msg) , 0) < 0)
         {
-            printf("Server Accept Failed!\n");
-            break;
+            puts("Send failed");
+            return 1;
         }
-
-        char buffer[BUFFER_SIZE];
-        bzero(buffer, BUFFER_SIZE);
-        length = recv(new_server_socket,buffer,BUFFER_SIZE,0);
-        if (length < 0)
-        {
-            printf("Server Recieve Data Failed!\n");
-            break;
-        }
-        puts(buffer);
-
-                //发送buffer中的字符串到new_server_socket,实际是给客户端
-                if(send(new_server_socket,buffer,strlen(buffer),0)<0)
-                {
-                    printf("Responding failed! \n");
-                    break;
-                }
-                bzero(buffer, BUFFER_SIZE);
-
-        //关闭与客户端的连接
-        close(new_server_socket);
+        puts(msg);
     }
-    //关闭监听用的socket
-    close(server_socket);
-    return 0;
+
+	close(conn_socket);
+
+	return 0;
 }
