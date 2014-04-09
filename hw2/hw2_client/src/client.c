@@ -47,21 +47,21 @@ char* msg_for_operation(int selection)
 
     printf("Which sensor would you like to read : \n \
 \n \
-    (1) Water temperature\n \
-    (2) Reactor temperature\n \
-    (3) Power level\n\n\
+\t(1) Water temperature\n \
+\t(2) Reactor temperature\n \
+\t(3) Power level\n\n\
 Selection: ");
     scanf("%d", &selection);
 
     switch(selection){
     case 1:
-        message = "WATER TEMPERATURE\n";
+        message = "WATER TEMPERATURE";
         break;
     case 2:
-        message = "REACTOR TEMPERATURE\n";
+        message = "REACTOR TEMPERATURE";
         break;
     case 3:
-        message = "POWER LEVEL\n";
+        message = "POWER LEVEL";
         break;
     default:
         break;
@@ -90,7 +90,7 @@ char* get_time_str(char server_reply[])
 
     /* Convert to local time format. */
     c_time_string = ctime(&raw_time );
-    puts(c_time_string);
+    //puts(c_time_string);
 
     if (c_time_string == NULL)
     {
@@ -99,6 +99,7 @@ char* get_time_str(char server_reply[])
     }
 
     /* Print to stdout. */
+    c_time_string[strlen(c_time_string) - 1] = '\0';
     return c_time_string;
 }
 
@@ -106,34 +107,37 @@ char* get_value_string(char server_reply[])
 {
     char value_string[100];
     memcpy( value_string, &server_reply[11], strlen(server_reply) - 11);
-    value_string[strlen(value_string)] = '\0';
+    value_string[strlen(server_reply) - 12] = '\0';
     return value_string;
 }
 
 char* comm_with_server(int sock, struct sockaddr_in server, int phase)
 {
-    char server_reply[2000], return_msg[2000];
+    char server_reply[2000], return_msg[2000], msg[2000];
     char* message;
     static int selection;
     memset(server_reply, 0, strlen(server_reply));
     memset(return_msg, 0, strlen(return_msg));
+    memset(msg, 0, strlen(msg));
 
     while(1)
     {
         if( phase == GET_AUTH ){
-            message = "AUTH secretpassword\n";
+            message = "AUTH secretpassword";
         }else if ( phase == GET_CONN ){
-            message = "AUTH networks\n";
+            message = "AUTH networks";
         }else if ( phase == OPERATION ){
             message = msg_for_operation(selection);
         }else if ( phase == CLOSE ){
-            message = "CLOSE\n";
+            message = "CLOSE";
         }
         //printf("Enter message : ");
         //scanf(" %[^\n]s", message);
 
         //Send some data
-        if( send(sock , message , strlen(message) , 0) < 0)
+        strcat(msg, message);
+        strcat(msg, "\n");
+        if( send(sock , msg , strlen(msg) , 0) < 0)
         {
             puts("Send failed");
             return 1;
@@ -153,15 +157,18 @@ char* comm_with_server(int sock, struct sockaddr_in server, int phase)
             memcpy( return_msg, &server_reply[41], 5 );
             return_msg[5] = '\0';
         }else if ( phase == OPERATION) {
-            message[strlen(message) - 1] = '\0'; // delete '\n'
+        	strcat(return_msg, "\n\t");
             strcat(return_msg, "The last ");
             strcat(return_msg, message);
             strcat(return_msg, " was taken ");
             strcat(return_msg, get_time_str(server_reply));
             strcat(return_msg, " and was ");
             strcat(return_msg, get_value_string(server_reply));
+            strcat(return_msg, "\n\n");
+        }else{
+            memcpy( return_msg, &server_reply[11], strlen(server_reply) );
+            return_msg[strlen(server_reply) ] = '\0';
         }
-
         return return_msg;
     }
 }

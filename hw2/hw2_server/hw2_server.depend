@@ -1,0 +1,8 @@
+# depslib dependency file v1.0
+1397012266 source:/home/jack/github/svn/jack2684/cs60-network/hw2/hw2_server/main.c
+	<stdio.h>
+	<string.h>
+	<sys/socket.h>
+	<arpa/inet.h>
+	<unistd.h>
+
