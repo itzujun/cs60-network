@@ -101,8 +101,8 @@ char* get_time_str(char server_reply[]) {
 
 char* get_value_string(char server_reply[]) {
 	char value_string[100];
-	memcpy(value_string, &server_reply[11], strlen(server_reply) - 11);
-	value_string[strlen(server_reply) - 12] = '\0';
+	memcpy(value_string, &server_reply[13], strlen(server_reply) - 12);
+	value_string[strlen(server_reply) - 13] = '\0';
 	return value_string;
 }
 
@@ -162,10 +162,10 @@ char* comm_with_server(int sock, struct sockaddr_in server, int phase) {
 				strcat(return_msg, get_time_str(server_reply));
 				strcat(return_msg, " and was ");
 				strcat(return_msg, get_value_string(server_reply));
-				strcat(return_msg, "\n\n");
+				strcat(return_msg, "\n");
 			}
 		} else {
-			memcpy(return_msg, &server_reply[11], strlen(server_reply));
+			memcpy(return_msg, &server_reply[0], strlen(server_reply));
 			return_msg[strlen(server_reply)] = '\0';
 		}
 		return return_msg;
@@ -174,7 +174,7 @@ char* comm_with_server(int sock, struct sockaddr_in server, int phase) {
 
 int talk_to_3mile(int port) {
 	int sock;
-	char* port_str;
+	char* recv_str;
 	struct sockaddr_in server;
 
 	// Create socket
@@ -194,23 +194,22 @@ int talk_to_3mile(int port) {
 
 	if (port == -1) {
 		// Get auth port
-		port_str = comm_with_server(sock, server, GET_AUTH);
+		recv_str = comm_with_server(sock, server, GET_AUTH);
 		if (!welcomed) {
 			puts("WELCOME TO THE THREE MILE ISLAND SENSOR NETWORK\n\n");
 			welcomed = 1;
 		}
 	} else {
 		// hand shake
-		port_str = comm_with_server(sock, server, GET_CONN);
-		puts(port_str);
+		recv_str = comm_with_server(sock, server, GET_CONN);
 		// operation
-		port_str = comm_with_server(sock, server, OPERATION);
-		puts(port_str);
+		recv_str = comm_with_server(sock, server, OPERATION);
+		puts(recv_str);
 		// say bye
-		port_str = comm_with_server(sock, server, CLOSE);
+		recv_str = comm_with_server(sock, server, CLOSE);
 	}
 	close(sock);
-	return atoi(port_str);
+	return atoi(recv_str);
 }
 
 int main() {
