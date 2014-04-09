@@ -9,6 +9,7 @@
 #define GET_CONN 1
 #define OPERATION 2
 #define CLOSE 3
+#define BUFFER_SIZE 1024
 
 static int welcomed = 0;
 
@@ -28,7 +29,7 @@ struct sockaddr_in config_server(int port) {
 	struct sockaddr_in server;
 
 	server.sin_addr.s_addr = inet_addr("129.170.213.101");
-	// server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(port);
 	//server.sin_port = htons( 8888 );
@@ -71,10 +72,10 @@ Selection: ");
 char* get_time_str(char server_reply[]) {
 	time_t raw_time, current_time2;
 	char* c_time_string, c_time_string2;
-	char time_str[200];
+	char time_str[BUFFER_SIZE];
 
 	/* Obtain current time as seconds elapsed since the Epoch. */
-	memcpy(time_str, &server_reply[0], 10);
+	memcpy(time_str, &server_reply[0], 12);
 	time_str[10] = '\0';
 	//time_str = "1346426869";
 	raw_time = atol(time_str);
@@ -106,12 +107,12 @@ char* get_value_string(char server_reply[]) {
 }
 
 char* comm_with_server(int sock, struct sockaddr_in server, int phase) {
-	char server_reply[2000], return_msg[2000], msg[2000];
+	char server_reply[BUFFER_SIZE], return_msg[BUFFER_SIZE], msg[BUFFER_SIZE];
 	char* message;
 	static int selection;
-	memset(server_reply, 0, strlen(server_reply));
-	memset(return_msg, 0, strlen(return_msg));
-	memset(msg, 0, strlen(msg));
+	memset(server_reply, 0, BUFFER_SIZE);
+	memset(return_msg, 0, BUFFER_SIZE);
+	memset(msg, 0, BUFFER_SIZE);
 
 	while (1) {
 		if (phase == GET_AUTH) {
@@ -137,7 +138,7 @@ char* comm_with_server(int sock, struct sockaddr_in server, int phase) {
 
 			//Receive a reply from the server
 			//puts(server_reply);
-			if (recv(sock, server_reply, 2000, 0) < 0) {
+			if (recv(sock, server_reply, BUFFER_SIZE, 0) < 0) {
 				puts("recv failed");
 				break;
 			}
@@ -201,6 +202,7 @@ int talk_to_3mile(int port) {
 	} else {
 		// hand shake
 		port_str = comm_with_server(sock, server, GET_CONN);
+		puts(port_str);
 		// operation
 		port_str = comm_with_server(sock, server, OPERATION);
 		puts(port_str);
