@@ -27,61 +27,32 @@
      _a < _b ? _a : _b; })
 
 int thread_count = 0;
+char auth_passwd[] = "AUTH secretpassword\n";
+char auth_network[] = "AUTH networks\n";
 pthread_t threads[MAX_THREAD_NUM];
 
 /**
- * 接收数据的执行函数
+ * the thread function to handle multiple connections
  * @param conn_socket
  */
-int recv_data(int conn_socket);
-
+int handle_clients(int conn_socket);
+int server_socket_setup(int port);
 
 /*
- * 主方法
+ * main
  */
 int main(int argc, char** argv)
 {
-	// 建立Socket
-	int server_socket = socket(PF_INET, SOCK_STREAM, 0);
-	if (server_socket < 0) {
-		printf("Socket create failed.\n");
-		return EXIT_FAILURE;
-	}
+	int server_socket = server_socket_setup(SERVER_PORT);
 
-	{
-		int opt = 1;
-		setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof (opt));
-	}
-
-	// 设置服务器端监听套接字参数
-	struct sockaddr_in server_addr;
-	bzero(&server_addr, sizeof (server_addr));
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = htons(INADDR_ANY);
-	server_addr.sin_port = htons(SERVER_PORT);
-	// 绑定端口
-	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof (server_addr)))
-	{
-		printf("Bind port %d failed.\n", SERVER_PORT);
-		return EXIT_FAILURE;
-	}
-
-	// 开始监听
-	if (listen(server_socket, LISTEN_QUEUE_LENGTH))
-	{
-		 printf("Server Listen Failed!");
-		 return EXIT_FAILURE;
-	}
-
-	// 开始处理客户端连接
+	// handling new coming request
 	bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
 	while (1)
 	{
 		struct sockaddr_in client_addr;
 		socklen_t length = sizeof(client_addr);
 
-		// 建立客户端连接
+		// connect with client
 		int client_conn = accept(server_socket, (struct sockaddr*) &client_addr, &length);
 		if (client_conn < 0)
 		{
@@ -91,8 +62,8 @@ int main(int argc, char** argv)
 			puts("client found!");
 		}
 
-		// 新建线程, 使用新线程与客户端交互
-		int pthread_err = pthread_create(threads + (thread_count++), NULL, (void *)recv_data, (void *)client_conn);
+		// creating new thread
+		int pthread_err = pthread_create(threads + (thread_count++), NULL, (void *)handle_clients, (void *)client_conn);
 		if (pthread_err != 0)
 		{
 			printf("Create thread Failed!\n");
@@ -104,45 +75,122 @@ int main(int argc, char** argv)
 	return (EXIT_SUCCESS);
 }
 
-int recv_data(int conn_socket)
+int server_socket_setup(int port)
+{
+	// build server Socket
+	int server_socket = socket(PF_INET, SOCK_STREAM, 0);
+	if (server_socket < 0) {
+		printf("Socket create failed.\n");
+		return EXIT_FAILURE;
+	}
+	else
+	{
+		int opt = 1;
+		setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof (opt));
+	}
+
+	// set server configuration
+	struct sockaddr_in server_addr;
+	bzero(&server_addr, sizeof (server_addr));
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+	server_addr.sin_port = htons(port);
+
+	// bind the port
+	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof (server_addr)))
+	{
+		printf("Bind port %d failed.\n", port);
+		return -1;
+	}
+
+	// listening
+	if (listen(server_socket, LISTEN_QUEUE_LENGTH))
+	{
+		 printf("Server Listen Failed!");
+		 return EXIT_FAILURE;
+	}
+
+	return server_socket;
+}
+
+int tell_port_num(int conn_socket)
 {
 	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE], num_str[88];
-	char auth_passwd[] = "AUTH secretpassword\n";
-	int port_num = 56152;
+	int port_num = 49153, server_socket = -1;
 	bzero(buffer, BUFFER_SIZE);
 	bzero(msg, BUFFER_SIZE);
 
-//	int length = 0;
-//	while (length = recv(conn_socket, buffer, BUFFER_SIZE, MSG_WAITALL))
-//	{
-//		if (length < 0)
-//		{
-//			printf("Server Recieve Data Failed! code %d\n", length);
-//		}
-//		printf("%s", buffer);
-//		bzero(buffer, BUFFER_SIZE);
-//
-//	}
-
-    //Receive a reply from the server
-    //puts(server_reply);
     if( recv(conn_socket , buffer , BUFFER_SIZE , 0) < 0)
     {
         puts("server recv failed");
     }
 
     if(memcmp(auth_passwd, buffer, min(sizeof(auth_passwd), sizeof(buffer))) == 0){
+    	// build a server_server socket
+    	while( server_socket == -1)
+    	{
+    		port_num = port_num < 65535 ? port_num + 1 : 49153;
+    		server_socket = server_socket_setup(port_num);
+    	}
+
+    	// tell client the new socket
     	sprintf(msg, "CONNECT threemileisland.cs.dartmouth.edu %d networks\n"
     			, port_num);;
         if( send(conn_socket , msg , strlen(msg) , 0) < 0)
         {
-            puts("Send failed");
-            return 1;
+            puts("Telling client fail");
+            return -1;
         }
         puts(msg);
     }
-
 	close(conn_socket);
+	return server_socket;
+}
+
+int handle_clients(int conn_socket)
+{
+	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE];
+
+    // Tell client the operation port number
+	int server_socket = tell_port_num(conn_socket);
+
+	// handling new coming request
+	bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
+	while (1)
+	{
+		struct sockaddr_in client_addr;
+		socklen_t length = sizeof(client_addr);
+
+		// connect with client
+		int client_conn = accept(server_socket, (struct sockaddr*) &client_addr, &length);
+		if (client_conn < 0)
+		{
+			printf("Server Accept Failed in child!\n");
+			return EXIT_FAILURE;
+		}else{
+			puts("client found in child!");
+		}
+
+	    if( recv(client_conn , buffer , BUFFER_SIZE , 0) < 0)
+	    {
+	        puts("server recv failed");
+	    }
+
+	    if(memcmp(auth_network, buffer, min(sizeof(auth_network), sizeof(buffer))) == 0){
+	    	// tell client the new socket
+	    	sprintf(msg, "SUCCESS\n");;
+	        if( send(client_conn , msg , strlen(msg) , 0) < 0)
+	        {
+	            puts("Telling client fail");
+	            return -1;
+	        }
+	        puts(msg);
+	    }
+
+	}
+	close(server_socket);
+	return (EXIT_SUCCESS);
 
 	return 0;
 }
