@@ -36,7 +36,12 @@ void comm_with_server(int sock, struct sockaddr_in server)
 
     while(1)
     {
-        printf("Enter message : ");
+        printf("Which sensor would you like to read : \n \
+\n \
+    (1) Water temperature\n \
+    (2) Reactor temperature\n \
+    (3) Power level\n\n\
+Selection: ");
         scanf(" %[^\n]s", message);
 
         // add '\n' to the end of the message
