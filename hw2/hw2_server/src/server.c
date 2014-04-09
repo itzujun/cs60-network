@@ -1,231 +1,94 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <netinet/in.h>    // for sockaddr_in
+#include <sys/types.h>    // for socket
+#include <sys/socket.h>    // for socket
+#include <stdio.h>        // for printf
+#include <stdlib.h>        // for exit
+#include <string.h>        // for bzero
+/*
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <string.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+*/
+#define HELLO_WORLD_SERVER_PORT    47789
+#define LENGTH_OF_LISTEN_QUEUE 20
+#define BUFFER_SIZE 1024
+#define FILE_NAME_MAX_SIZE 512
 
-#define GET_AUTH 0
-#define GET_CONN 1
-#define OPERATION 2
-#define CLOSE 3
-
-static int welcomed = 0;
-
-int create_socket()
+int main(int argc, char **argv)
 {
-    int sock;
+    //设置一个socket地址结构server_addr,代表服务器internet地址, 端口
+    struct sockaddr_in server_addr;
+    bzero(&server_addr,sizeof(server_addr)); //把一段内存区的内容全部设置为0
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+    server_addr.sin_port = htons(HELLO_WORLD_SERVER_PORT);
 
-    sock = socket(AF_INET , SOCK_STREAM , 0);
-    if (sock == -1)
+    //创建用于internet的流协议(TCP)socket,用server_socket代表服务器socket
+    int server_socket = socket(PF_INET,SOCK_STREAM,0);
+    if( server_socket < 0)
     {
-        printf("Could not create socket");
+        printf("Create Socket Failed!");
+        exit(1);
     }
-    // puts("Socket created");
-
-    return sock;
+{
+   int opt =1;
+   setsockopt(server_socket,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
 }
 
-struct sockaddr_in config_server(int port)
-{
-    struct sockaddr_in server;
-
-    //server.sin_addr.s_addr = inet_addr("129.170.213.101");
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server.sin_family = AF_INET;
-    server.sin_port = htons( port );
-    //server.sin_port = htons( 8888 );
-
-    return server;
-}
-
-char* msg_for_operation(int selection)
-{
-    //void *block = malloc(2000);
-    //memset(block, 0, s);
-    char* message;
-
-    printf("Which sensor would you like to read : \n \
-\n \
-\t(1) Water temperature\n \
-\t(2) Reactor temperature\n \
-\t(3) Power level\n\n\
-Selection: ");
-    scanf("%d", &selection);
-
-    switch(selection){
-    case 1:
-        message = "WATER TEMPERATURE";
-        break;
-    case 2:
-        message = "REACTOR TEMPERATURE";
-        break;
-    case 3:
-        message = "POWER LEVEL";
-        break;
-    default:
-        break;
+    //把socket和socket地址结构联系起来
+    if( bind(server_socket,(struct sockaddr*)&server_addr,sizeof(server_addr)))
+    {
+        printf("Server Bind Port : %d Failed!", HELLO_WORLD_SERVER_PORT);
+        exit(1);
     }
 
-    return message;
-}
-
-char* get_time_str(char server_reply[])
-{
-    time_t raw_time , current_time2;
-    char* c_time_string, c_time_string2;
-    char time_str[200];
-
-    /* Obtain current time as seconds elapsed since the Epoch. */
-    memcpy( time_str, &server_reply[0], 10);
-    time_str[10] = '\0';
-    //time_str = "1346426869";
-    raw_time  = atol(time_str);
-
-    if (raw_time  == ((time_t)-1))
+    //server_socket用于监听
+    if ( listen(server_socket, LENGTH_OF_LISTEN_QUEUE) )
     {
-        (void) fprintf(stderr, "Failure to compute the current time.");
-        return 0;
+        printf("Server Listen Failed!");
+        exit(1);
     }
-
-    /* Convert to local time format. */
-    c_time_string = ctime(&raw_time );
-    //puts(c_time_string);
-
-    if (c_time_string == NULL)
+    while (1) //服务器端要一直运行
     {
-        (void) fprintf(stderr, "Failure to convert the current time.");
-        return 0;
-    }
+        //定义客户端的socket地址结构client_addr
+        struct sockaddr_in client_addr;
+        socklen_t length = sizeof(client_addr);
 
-    /* Print to stdout. */
-    c_time_string[strlen(c_time_string) - 1] = '\0';
-    return c_time_string;
-}
-
-char* get_value_string(char server_reply[])
-{
-    char value_string[100];
-    memcpy( value_string, &server_reply[11], strlen(server_reply) - 11);
-    value_string[strlen(server_reply) - 12] = '\0';
-    return value_string;
-}
-
-char* comm_with_server(int sock, struct sockaddr_in server, int phase)
-{
-    char server_reply[2000], return_msg[2000], msg[2000];
-    char* message;
-    static int selection;
-    memset(server_reply, 0, strlen(server_reply));
-    memset(return_msg, 0, strlen(return_msg));
-    memset(msg, 0, strlen(msg));
-
-    while(1)
-    {
-        if( phase == GET_AUTH ){
-            message = "AUTH secretpassword";
-        }else if ( phase == GET_CONN ){
-            message = "AUTH networks";
-        }else if ( phase == OPERATION ){
-            message = msg_for_operation(selection);
-        }else if ( phase == CLOSE ){
-            message = "CLOSE";
-        }
-        //printf("Enter message : ");
-        //scanf(" %[^\n]s", message);
-
-        //Send some data
-        strcat(msg, message);
-        strcat(msg, "\n");
-        if( send(sock , msg , strlen(msg) , 0) < 0)
+        //接受一个到server_socket代表的socket的一个连接
+        //如果没有连接请求,就等待到有连接请求--这是accept函数的特性
+        //accept函数返回一个新的socket,这个socket(new_server_socket)用于同连接到的客户的通信
+        //new_server_socket代表了服务器和客户端之间的一个通信通道
+        //accept函数把连接到的客户端信息填写到客户端的socket地址结构client_addr中
+        int new_server_socket = accept(server_socket,(struct sockaddr*)&client_addr,&length);
+        if ( new_server_socket < 0)
         {
-            puts("Send failed");
-            return 1;
-        }
-
-        //Receive a reply from the server
-        //puts(server_reply);
-        if( recv(sock , server_reply , 2000 , 0) < 0)
-        {
-            puts("recv failed");
+            printf("Server Accept Failed!\n");
             break;
         }
 
-        //puts("Server reply :");
-        //puts(server_reply);
-        if( phase == GET_AUTH ){
-            memcpy( return_msg, &server_reply[41], 5 );
-            return_msg[5] = '\0';
-        }else if ( phase == OPERATION) {
-        	strcat(return_msg, "\n\t");
-            strcat(return_msg, "The last ");
-            strcat(return_msg, message);
-            strcat(return_msg, " was taken ");
-            strcat(return_msg, get_time_str(server_reply));
-            strcat(return_msg, " and was ");
-            strcat(return_msg, get_value_string(server_reply));
-            strcat(return_msg, "\n\n");
-        }else{
-            memcpy( return_msg, &server_reply[11], strlen(server_reply) );
-            return_msg[strlen(server_reply) ] = '\0';
-        }
-        return return_msg;
-    }
-}
-
-int talk_to_3mile(int port)
-{
-    int sock;
-    char* port_str;
-    struct sockaddr_in server;
-
-    // Create socket
-    sock = create_socket();
-
-    // Configure server info
-    if(port == -1)
-        server = config_server(47789);
-    else
-        server = config_server(port);
-
-    // Connect to remote server
-    if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
-    {
-        perror("connect failed. Error");
-        return 1;
-    }
-
-    if( port == -1 ){
-        // Get auth port
-        port_str = comm_with_server(sock, server, GET_AUTH);
-        if(!welcomed)
+        char buffer[BUFFER_SIZE];
+        bzero(buffer, BUFFER_SIZE);
+        length = recv(new_server_socket,buffer,BUFFER_SIZE,0);
+        if (length < 0)
         {
-            puts("WELCOME TO THE THREE MILE ISLAND SENSOR NETWORK\n\n");
-            welcomed = 1;
+            printf("Server Recieve Data Failed!\n");
+            break;
         }
-    } else {
-        // hand shake
-        port_str = comm_with_server(sock, server, GET_CONN);
-        // operation
-        port_str = comm_with_server(sock, server, OPERATION);
-        puts(port_str);
-        // say bye
-        port_str = comm_with_server(sock, server, CLOSE);
+        puts(buffer);
+
+                //发送buffer中的字符串到new_server_socket,实际是给客户端
+                if(send(new_server_socket,buffer,strlen(buffer),0)<0)
+                {
+                    printf("Responding failed! \n");
+                    break;
+                }
+                bzero(buffer, BUFFER_SIZE);
+
+        //关闭与客户端的连接
+        close(new_server_socket);
     }
-    close(sock);
-    return atoi(port_str);
-}
-
-int main()
-{
-    int port;
-
-    while(1){
-        port = talk_to_3mile(-1);
-        talk_to_3mile(port);
-    }
-
+    //关闭监听用的socket
+    close(server_socket);
     return 0;
 }
-
-
