@@ -28,8 +28,8 @@ int create_socket() {
 struct sockaddr_in config_server(int port) {
 	struct sockaddr_in server;
 
-	server.sin_addr.s_addr = inet_addr("129.170.213.101");
-	//server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	//server.sin_addr.s_addr = inet_addr("129.170.213.101");
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(port);
 	//server.sin_port = htons( 8888 );
@@ -74,8 +74,11 @@ char* get_time_str(char server_reply[]) {
 	char* c_time_string, c_time_string2;
 	char time_str[BUFFER_SIZE];
 
+	int idx;
+	for( idx = 0; server_reply[idx] != ' '; idx++);
+
 	/* Obtain current time as seconds elapsed since the Epoch. */
-	memcpy(time_str, &server_reply[0], 12);
+	memcpy(time_str, &server_reply[0], idx);
 	time_str[10] = '\0';
 	//time_str = "1346426869";
 	raw_time = atol(time_str);
@@ -100,9 +103,12 @@ char* get_time_str(char server_reply[]) {
 }
 
 char* get_value_string(char server_reply[]) {
+	int idx;
+	for( idx = 0; server_reply[idx] != ' '; idx++);
+
 	char value_string[100];
-	memcpy(value_string, &server_reply[13], strlen(server_reply) - 12);
-	value_string[strlen(server_reply) - 13] = '\0';
+	memcpy(value_string, &server_reply[idx + 1], strlen(server_reply) - idx);
+	value_string[strlen(server_reply) - idx] = '\0';
 	return value_string;
 }
 

@@ -34,6 +34,7 @@ char reactor[] = "REACTOR TEMPERATURE\n";
 char power[] = "POWER LEVEL\n";
 char auth_close[] = "CLOSE\n";
 pthread_t threads[MAX_THREAD_NUM];
+static int port_num = 49153;
 
 /**
  * the thread function to handle multiple connections
@@ -46,6 +47,7 @@ int server_socket_setup(int port);
  * main
  */
 int main(int argc, char** argv) {
+	srand(time(NULL));
 	int server_socket = server_socket_setup(SERVER_PORT);
 
 	// handling new coming request
@@ -55,13 +57,12 @@ int main(int argc, char** argv) {
 		socklen_t length = sizeof(client_addr);
 
 		// connect with client
+		puts("start listening...");
 		int client_conn = accept(server_socket, (struct sockaddr*) &client_addr,
 				&length);
 		if (client_conn < 0) {
 			printf("Server Accept Failed!\n");
 			return EXIT_FAILURE;
-		} else {
-			puts("client found!");
 		}
 
 		// creating new thread
@@ -118,12 +119,12 @@ int str_compare(char buff1[], char buff2[]) {
 
 int tell_port_num(int conn_socket) {
 	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE], num_str[88];
-	int port_num = 49153, server_socket = -1;
+	int  server_socket = -1;
 	bzero(buffer, BUFFER_SIZE);
 	bzero(msg, BUFFER_SIZE);
 
 	if (recv(conn_socket, buffer, BUFFER_SIZE, 0) < 0) {
-		puts("server recv failed");
+		puts("tell_port_num: server recv failed");
 	}
 
 	if (str_compare(auth_passwd, buffer) == 0) {
@@ -157,29 +158,27 @@ int handle_clients(int conn_socket) {
 	bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
 	int client_conn = -1;
 	while (1) {
-		puts("position 1");
-		struct sockaddr_in client_addr;
-		socklen_t length = sizeof(client_addr);
+		bzero(buffer, BUFFER_SIZE);
+		bzero(msg, BUFFER_SIZE);
 
-		puts("position 2");
 		// connect with client
 		if (client_conn == -1) {
+			struct sockaddr_in client_addr;
+			socklen_t length = sizeof(client_addr);
 			client_conn = accept(server_socket, (struct sockaddr*) &client_addr,
 					&length);
 			if (client_conn < 0) {
 				printf("Server Accept Failed in child!\n");
 				return EXIT_FAILURE;
-			} else {
-				puts("client found in child!");
 			}
 		}
 
-		puts("position 3");
 		if (recv(client_conn, buffer, BUFFER_SIZE, 0) < 0) {
-			puts("server recv failed");
+			puts("handle_clients: server recv failed");
+			sleep(100);
+			continue;
 		}
 
-		puts("position 4");
 		if (str_compare(auth_network, buffer) == 0) {
 			// tell client the new socket
 			sprintf(msg, "SUCCESS\n");
@@ -188,36 +187,38 @@ int handle_clients(int conn_socket) {
 				return -1;
 			}
 		} else if (str_compare(water, buffer) == 0) {
+			puts("in the water");
 			int temp = rand() % 100;
-			sprintf(msg, "%Ld %d F\n", (unsigned) time(NULL), temp);
+			sprintf(msg, "%d %d F\n", (int)time(NULL), temp);
 			if (send(client_conn, msg, strlen(msg), 0) < 0) {
 				puts("Telling client fail");
 				return -1;
 			}
-		} else if (str_compare(water, buffer) == 0) {
+			puts(msg);
+		} else if (str_compare(reactor, buffer) == 0) {
 			int temp = rand() % 100;
-			sprintf(msg, "%Ld %d F\n", (unsigned) time(NULL), temp);
+			sprintf(msg, "%d %d F\n", (int)time(NULL), temp);
 			if (send(client_conn, msg, strlen(msg), 0) < 0) {
 				puts("Telling client fail");
 				return -1;
 			}
-		} else if (str_compare(water, buffer) == 0) {
+		} else if (str_compare(power, buffer) == 0) {
 			int temp = rand() % 100;
-			sprintf(msg, "%Ld %d F\n", (unsigned) time(NULL), temp);
+			sprintf(msg, "%d %d Mw\n", (int)time(NULL), temp);
 			if (send(client_conn, msg, strlen(msg), 0) < 0) {
 				puts("Telling client fail");
 				return -1;
 			}
-		} else if (str_compare(water, buffer) == 0) {
-			int temp = rand() % 100;
-			sprintf(msg, "%Ld %d F\n", (unsigned) time(NULL), temp);
+		} else if (str_compare(auth_close, buffer) == 0) {
+			sprintf(msg, "BYE\n");
 			if (send(client_conn, msg, strlen(msg), 0) < 0) {
 				puts("Telling client fail");
 				return -1;
 			}
+			close(server_socket);
+			// Tell client the operation port number
+			int server_socket = tell_port_num(conn_socket);
 		}
-		puts(msg);
-
 	}
 	close(server_socket);
 	pthread_exit(NULL);
