@@ -28,8 +28,8 @@ int create_socket() {
 struct sockaddr_in config_server(int port) {
 	struct sockaddr_in server;
 
-	//server.sin_addr.s_addr = inet_addr("129.170.213.101");
-	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_addr.s_addr = inet_addr("129.170.213.101");
+	//server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(port);
 	//server.sin_port = htons( 8888 );
