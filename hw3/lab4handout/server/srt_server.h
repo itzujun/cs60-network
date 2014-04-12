@@ -6,11 +6,14 @@
 //
 // Date: April 18, 2008
 //       April 21, 2008 **Added more detailed description of prototypes fixed ambiguities** ATC
+//       April 26, 2008 **Added GBN descriptions
+//       May 1, 2009    ** Clarified that srt_server_recv blocks until all the requested data is ready ** ATC
 //
 
 #ifndef SRTSERVER_H
 #define SRTSERVER_H
 
+#include <pthread.h>
 #include "../common/seg.h"
 #include "../common/constants.h"
 
@@ -21,18 +24,17 @@
 #define	CLOSEWAIT 4
 
 
-//server tranport control block. the server side of a SRT connection uses this data structure to keep track of the connection information.
+//server transport control block. the server side of a SRT connection uses this data structure to keep track of the connection information.
 typedef struct svr_tcb {
 	unsigned int svr_nodeID;        //node ID of server, similar as IP address, currently unused
 	unsigned int svr_portNum;       //port number of server
 	unsigned int client_nodeID;     //node ID of client, similar as IP address, currently unused
 	unsigned int client_portNum;    //port number of client
 	unsigned int state;         	//state of server
-	//the following fields are for data transmission. you don't need to worry about these fields in lab4.
-	unsigned int expect_seqNum;     
-	char* recvBuf;                  
-	unsigned int  usedBufLen;      
-	pthread_mutex_t* bufMutex;      
+	unsigned int expect_seqNum;     //the server's expecting data sequence number	
+	char* recvBuf;                  //a pointer pointing to the receive buffer
+	unsigned int  usedBufLen;       //size of the received data in receive buffer
+	pthread_mutex_t* bufMutex;      //a pointer pointing to the mutex which is used for receive buffer access
 } svr_tcb_t;
 
 
@@ -79,7 +81,7 @@ int srt_server_sock(unsigned int port);
 
 int srt_server_accept(int sockfd);
 
-// This function gets the TCB pointer using the sockfd and changes the state of the connetion to 
+// This function gets the TCB pointer using the sockfd and changes the state of the connection to 
 // LISTENING. It then starts a timer to ``busy wait'' until the TCB's state changes to CONNECTED 
 // (seghandler does this when a SYN is received). It waits in an infinite loop for the state 
 // transition before proceeding and to return 1 when the state change happens, dropping out of
@@ -90,10 +92,15 @@ int srt_server_accept(int sockfd);
 
 int srt_server_recv(int sockfd, void* buf, unsigned int length);
 
-// Receive data to a srt client. Recall this is a unidirectional transport
+// Receive data from a srt client. Recall this is a unidirectional transport
 // where DATA flows from the client to the server. Signaling/control messages
-// such as SYN, SYNACK, etc.flow in both directions. You do not need to implement 
-// this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
+// such as SYN, SYNACK, etc.flow in both directions. 
+// This function keeps polling the receive buffer every RECVBUF_POLLING_INTERVAL
+// until the requested data is available, then it stores the data and returns 1
+// If the function fails, return -1 
+//
+// Note that srt_server_recv blocked waiting for the user requested number
+// of bytes (i.e., length) are at the server before returning data to the application
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //

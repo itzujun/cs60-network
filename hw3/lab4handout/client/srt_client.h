@@ -6,11 +6,14 @@
 //
 // Date: April 18, 2008
 //       April 21, 2008 **Added more detailed description of prototypes fixed ambiguities** ATC
+//       April 26, 2008 ** Added GBN and send buffer function descriptions **
+//       May 1, 2009    ** Clarified that srt_client_send is non blocking ** ATC
 //
 
 #ifndef SRTCLIENT_H
 #define SRTCLIENT_H
 
+#include <pthread.h>
 #include "../common/seg.h"
 
 //client states used in FSM
@@ -19,7 +22,7 @@
 #define	CONNECTED 3
 #define	FINWAIT 4
 
-//unit to store segments in send buffer, you don't need to worry about this in this lab.
+//unit to store segments in send buffer linked list.
 typedef struct segBuf {
         seg_t seg;
         unsigned int sentTime;
@@ -27,20 +30,19 @@ typedef struct segBuf {
 } segBuf_t;
 
 
-//client tranport control block. the client side of a SRT connection uses this data structure to keep track of the connection information.   
+//client transport control block. the client side of a SRT connection uses this data structure to keep track of the connection information.   
 typedef struct client_tcb {
 	unsigned int svr_nodeID;        //node ID of server, similar as IP address, currently unused
 	unsigned int svr_portNum;       //port number of server
 	unsigned int client_nodeID;     //node ID of client, similar as IP address, currently unused
 	unsigned int client_portNum;    //port number of client
 	unsigned int state;     	//state of client
-	//fields below are used for data transmission, you will not use them in lab4.
-	unsigned int next_seqNum;       
-	pthread_mutex_t* bufMutex;      
-	segBuf_t* sendBufHead;         
-	segBuf_t* sendBufunSent;       
-	segBuf_t* sendBufTail;         
-	unsigned int unAck_segNum;      
+	unsigned int next_seqNum;       //next sequence number to be used by new segment 
+	pthread_mutex_t* bufMutex;      //send buffer mutex
+	segBuf_t* sendBufHead;          //head of send buffer
+	segBuf_t* sendBufunSent;        //first unsent segment in send buffer
+	segBuf_t* sendBufTail;          //tail of send buffer
+	unsigned int unAck_segNum;      //number of sent-but-not-Acked segments
 } client_tcb_t;
 
 
@@ -100,8 +102,17 @@ int srt_client_connect(int socked, unsigned int server_port);
 
 int srt_client_send(int sockfd, void* data, unsigned int length);
 
-// Send data to a srt server. You do not need to implement this for Lab4.
-// We will use this in Lab5 when we implement a Go-Back-N sliding window.
+// Send data to a srt server. This function should use the SRT socket ID to find the TCP entry. 
+// It creates segBufs using the given data and append them to send linked list. 
+// If the send buffer is empty before insertion, a thread called sendbuf_timer 
+// should be started to poll the send buffer every SENDBUF_POLLING_INTERVAL time
+// to check if a timeout event should occur. If the function completes successfully, 
+// it returns 1. Otherwise, it returns -1. srt_client_send is a non-blocking function call.
+// Because user data is fragmented into fixed sized SRT segments there may be
+// multiple segBufs queued to the send link list for a single srt_client_send call.
+// If the call is successful the data is queued on the TCB send linked list and
+// depending on the condition of the sliding window the data will either be
+// trasmitted over the network or queued waiting to be transmitted. 
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
@@ -137,6 +148,16 @@ void *seghandler(void* arg);
 // on the state of the connection when a segment is received  (based on the incoming segment) various
 // actions are taken. See the client FSM for more details.
 //
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+void* sendBuf_timer(void* clienttcb);
+
+// This thread continuously polls send buffer to trigger timeout events
+// It should always be running when the send buffer is not empty
+// If the current time -  first sent-but-unAcked segment's sent time > DATA_TIMEOUT, a timeout event occurs
+// When timeout, resend all sent-but-unAcked segments
+// When the send buffer is empty, this thread terminates
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #endif
