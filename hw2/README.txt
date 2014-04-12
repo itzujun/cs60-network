@@ -9,7 +9,7 @@ Date: 2014-04-09
  This is built under 32-bit linux system. I think it should be able to run in 64-bit system.
  
  * Installation / Setup
- All those source files are under ./project/src folder, and make files are under ./project/Default folders
+ All those source files are under ./project/src folder. Binary files and makefiles are under ./project/Default folders
  
  * Configuration
  

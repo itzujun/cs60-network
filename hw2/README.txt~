@@ -16,5 +16,7 @@ Date: 2014-04-09
  * Troubleshooting
  
  * FAQ
+ Where is the sample output of the client when communicating with the server I wrote?
+ The outputs are the same. So I just keep one screen shot
  
  * Maintainers
