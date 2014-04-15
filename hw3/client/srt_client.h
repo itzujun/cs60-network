@@ -140,7 +140,7 @@ int srt_client_close(int sockfd);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
-void *seghandler(void* arg);
+int seghandler();
 
 // This is a thread  started by srt_client_init(). It handles all the incoming 
 // segments from the server. The design of seghanlder is an infinite loop that calls snp_recvseg(). If
@@ -163,7 +163,7 @@ void* sendBuf_timer(void* clienttcb);
 /**
 * following are helper functions
 */
-void init_tcb(client_tcb_t* tcb_t);
+int init_tcb(client_tcb_t* tcb_t, int client_port);
 int is_timeout(struct timespec tstart, struct timespec tend, int action);
 void send_control_msg(int sockfd, int action);
 int try_in_time(int sockfd, int action);

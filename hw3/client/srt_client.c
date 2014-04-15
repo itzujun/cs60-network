@@ -5,7 +5,7 @@
 #include <time.h>
 #include <pthread.h>
 #include "srt_client.h"
-#define MAX_THREAD_NUM 2
+#define MAX_THREAD_NUM 11
 
 typedef struct client_tcb client_tcb_t;
 typedef struct port_sockfd_pair{
@@ -13,7 +13,7 @@ typedef struct port_sockfd_pair{
   int sock;
 }port_sock;
 
-int svr_conn;
+int overlay_conn;
 const int TCB_TABLE_SIZE = 11;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
@@ -55,7 +55,7 @@ port_sock **p2s_hash_t;
 
 void srt_client_init(int conn) {
   int thread_count, i;
-  svr_conn = conn;
+  overlay_conn = conn;
 
   // init tcb table and port/sock mapping
   tcb_table = (client_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(client_tcb_t*));
@@ -99,7 +99,7 @@ int srt_client_sock(unsigned int client_port) {
     if (tcb_table[idx] == NULL) {
       // creat a tcb entry
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
-      if(init_tcb(tcb_table[idx]) == -1) 
+      if(init_tcb(tcb_table[idx], client_port) == -1) 
         printf("hash table insert failed!\n");
       return idx;
     }
@@ -107,7 +107,7 @@ int srt_client_sock(unsigned int client_port) {
   return -1;
 }
 
-int init_tcb(client_tcb_t* tcb_t) {
+int init_tcb(client_tcb_t* tcb_t, int client_port) {
   tcb_t->svr_nodeID = 0;  // currently unused
   tcb_t->svr_portNum = 0; // @TODO: where to get it??, will be initialized latter  
   tcb_t->client_nodeID = 0;  // currently unused
@@ -129,7 +129,7 @@ int init_tcb(client_tcb_t* tcb_t) {
       return 0;
     }
   }
-  return -1
+  return -1;
 }
 
 // Connect to a srt server
@@ -150,7 +150,7 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
   tcb_table[sockfd]->svr_portNum = server_port;
   tcb_table[sockfd]->state = SYNSENT;
-  send_control_msg(sockfd, server_port, SYNSENT);
+  send_control_msg(sockfd, SYNSENT);
 
   // timer
   return try_in_time(sockfd, SYNSENT);
@@ -160,10 +160,10 @@ int is_timeout(struct timespec tstart, struct timespec tend, int action) {
   if(tend.tv_sec - tstart.tv_sec > 0)
     return 1;
   else if((action == SYNSENT) 
-    && (tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS)
+    && (tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS))
     return 1;
   else if((action == FINWAIT) 
-    && (tend.tv_nsec - tstart.tv_nsec > FINSEG_TIMEOUT_NS)
+    && (tend.tv_nsec - tstart.tv_nsec > FINSEG_TIMEOUT_NS))
     return 1;
   else
     return 0;
@@ -171,15 +171,15 @@ int is_timeout(struct timespec tstart, struct timespec tend, int action) {
 
 void send_control_msg(int sockfd, int action) {
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
-  segPtr->src_port = tcb_table[sockfd]->client_portNum;
-  segPtr->dest_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
 
   // configure control msg type
   if (action == SYNSENT){
-      segPtr->type = SYN;
+      segPtr->header.type = SYN;
   }
 
-  sendseg(svr_conn, segPtr);
+  sendseg(overlay_conn, segPtr);
 }
 
 // Send data to a srt server
@@ -206,9 +206,8 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 
 int srt_client_disconnect(int sockfd) {
     // set the state of corresponding tcb entry
-  tcb_table[sockfd]->svr_portNum = server_port;
   tcb_table[sockfd]->state = FINWAIT;
-  send_control_msg(sockfd, server_port, FINWAIT);
+  send_control_msg(sockfd, FINWAIT);
 
   // timer
   return try_in_time(sockfd, FINWAIT);
@@ -220,7 +219,7 @@ int try_in_time(int sockfd, int action) {
     struct timespec tstart={0,0}, tend={0,0};
     clock_gettime(CLOCK_MONOTONIC, &tstart);
     clock_gettime(CLOCK_MONOTONIC, &tend);
-    while(!is_syn_timeout(tstart, tend, action)) {
+    while(!is_timeout(tstart, tend, action)) {
       sleep(50);
       if(action == SYNSENT 
         && tcb_table[sockfd]->state == CONNECTED)
@@ -263,9 +262,9 @@ int srt_client_close(int sockfd) {
 
 int seghandler() {
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
-  while(true) {
-    if(recvseg(svr_conn, segPtr) == 1){
-      int sockfd = p2s_hash_get(segPtr->header->client_port);
+  while(1) {
+    if(recvseg(overlay_conn, segPtr) == 1){
+      int sockfd = p2s_hash_get(segPtr->header.dest_port);
       if(tcb_table[sockfd]->state == SYNSENT)
         tcb_table[sockfd]->state = CONNECTED;
       else if(tcb_table[sockfd]->state == FINWAIT)

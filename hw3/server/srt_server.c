@@ -5,7 +5,20 @@
 #include <pthread.h>
 #include "srt_server.h"
 #include "../common/constants.h"
+#define MAX_THREAD_NUM 11
 
+typedef struct client_tcb client_tcb_t;
+typedef struct port_sockfd_pair{
+  int port;
+  int sock;
+}port_sock;
+
+int overlay_conn;
+const int TCB_TABLE_SIZE = 11;
+const int CHK_STAT_INTERVAL_NS = 50;
+pthread_t threads[MAX_THREAD_NUM];
+client_tcb_t **tcb_table;
+port_sock **p2s_hash_t;
 
 /*interfaces to application layer*/
 
@@ -36,7 +49,7 @@
 //
 
 void srt_server_init(int conn) {
-  return;
+	return;
 }
 
 // Create a server sock
