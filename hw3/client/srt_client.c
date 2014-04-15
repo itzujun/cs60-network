@@ -5,14 +5,20 @@
 #include <time.h>
 #include <pthread.h>
 #include "srt_client.h"
-
 #define MAX_THREAD_NUM 2
+
+typedef struct client_tcb client_tcb_t;
+typedef struct port_sockfd_pair{
+  int port;
+  int sock;
+}port_sock;
 
 int svr_conn;
 const int TCB_TABLE_SIZE = 11;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
-client_tcb **tcb_table;
+client_tcb_t **tcb_table;
+port_sock **p2s_hash_t;
 
 /*interfaces to application layer*/
 
@@ -48,18 +54,24 @@ client_tcb **tcb_table;
 //
 
 void srt_client_init(int conn) {
+  int thread_count, i;
   svr_conn = conn;
 
-  tcb_table = (client_tcb**) malloc(TCB_TABLE_SIZE*sizeof(client_tcb*));
-  for (int i = 0; i < TCB_TABLE_SIZE; i++){
+  // init tcb table and port/sock mapping
+  tcb_table = (client_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(client_tcb_t*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
     *(tcb_table + i) = NULL;
+  }
+  p2s_hash_t = (port_sock**) malloc(TCB_TABLE_SIZE * sizeof(port_sock*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(p2s_hash_t + i) = NULL;
   }
 
   // handling new coming request
   bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
   // creating new thread
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
-    (void *) seghandler, (void *) sockfd);
+    (void *) seghandler, (void *) NULL);
   if (pthread_err != 0) {
     printf("Create thread Failed!\n");
     return;
@@ -81,19 +93,21 @@ void srt_client_init(int conn) {
 //
 
 int srt_client_sock(unsigned int client_port) {
+  int idx;
   // find the first NULL, and create a tcb entry
-  for (int idx = 0; idx < TCB_TABLE_SIZE; idx++){
+  for (idx = 0; idx < TCB_TABLE_SIZE; idx++){
     if (tcb_table[idx] == NULL) {
       // creat a tcb entry
-      tcb_table[idx] = (client_tcb*) malloc(sizeof(client_tcb_t));
-      init_tcb(tcb_table[idx]);
+      tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
+      if(init_tcb(tcb_table[idx]) == -1) 
+        printf("hash table insert failed!\n");
       return idx;
     }
   }
   return -1;
 }
 
-void init_tcb(client_tcb_t* tcb_t) {
+int init_tcb(client_tcb_t* tcb_t) {
   tcb_t->svr_nodeID = 0;  // currently unused
   tcb_t->svr_portNum = 0; // @TODO: where to get it??, will be initialized latter  
   tcb_t->client_nodeID = 0;  // currently unused
@@ -105,6 +119,17 @@ void init_tcb(client_tcb_t* tcb_t) {
   tcb_t->sendBufunSent = NULL; 
   tcb_t->sendBufTail = NULL; 
   tcb_t->unAck_segNum = 0; 
+
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (client_port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] == NULL) {
+      port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
+      p2s_hash_t[hash_idx] = p2s;
+      return 0;
+    }
+  }
+  return -1
 }
 
 // Connect to a srt server
@@ -236,10 +261,11 @@ int srt_client_close(int sockfd) {
 // actions are taken. See the client FSM for more details.
 //
 
-int seghandler(int sockfd) {
+int seghandler() {
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   while(true) {
     if(recvseg(svr_conn, segPtr) == 1){
+      int sockfd = p2s_hash_get(segPtr->header->client_port);
       if(tcb_table[sockfd]->state == SYNSENT)
         tcb_table[sockfd]->state = CONNECTED;
       else if(tcb_table[sockfd]->state == FINWAIT)
@@ -250,6 +276,19 @@ int seghandler(int sockfd) {
       return -1;
     }
   }
+}
+
+int p2s_hash_get(int port) {
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] != NULL 
+        && p2s_hash_t[hash_idx]->port == port) {
+      return p2s_hash_t[hash_idx]->sock;
+    }
+  }
+  printf("p2s_hash_get err\n");
+  return -1;
 }
 
 
