@@ -7,7 +7,7 @@
 #include "../common/constants.h"
 #define MAX_THREAD_NUM 11
 
-typedef struct client_tcb client_tcb_t;
+typedef struct client_tcb svr_tcb_t;
 typedef struct port_sockfd_pair{
   int port;
   int sock;
@@ -17,7 +17,7 @@ int overlay_conn;
 const int TCB_TABLE_SIZE = 11;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
-client_tcb_t **tcb_table;
+svr_tcb_t **tcb_table;
 port_sock **p2s_hash_t;
 
 /*interfaces to application layer*/
@@ -49,7 +49,30 @@ port_sock **p2s_hash_t;
 //
 
 void srt_server_init(int conn) {
-	return;
+  int thread_count, i;
+  overlay_conn = conn;
+
+  // init tcb table and port/sock mapping
+  tcb_table = (svr_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(svr_tcb_t*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(tcb_table + i) = NULL;
+  }
+  p2s_hash_t = (port_sock**) malloc(TCB_TABLE_SIZE * sizeof(port_sock*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(p2s_hash_t + i) = NULL;
+  }
+
+  // handling new coming request
+  bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
+  // creating new thread
+  int pthread_err = pthread_create(threads + (thread_count++), NULL,
+    (void *) seghandler, (void *) NULL);
+  if (pthread_err != 0) {
+    printf("Create thread Failed!\n");
+    return;
+  }
+
+  return;
 }
 
 // Create a server sock
@@ -62,7 +85,43 @@ void srt_server_init(int conn) {
 // is available the function returns -1.
 
 int srt_server_sock(unsigned int port) {
-	return 0;
+  int idx;
+  // find the first NULL, and create a tcb entry
+  for (idx = 0; idx < TCB_TABLE_SIZE; idx++){
+    if (tcb_table[idx] == NULL) {
+      // creat a tcb entry
+      tcb_table[idx] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
+      if(init_tcb(tcb_table[idx], port) == -1) 
+        printf("hash table insert failed!\n");
+      return idx;
+    }
+  }
+  return -1;
+}
+
+int init_tcb(svr_tcb_t* tcb_t, int port) {
+  tcb_t->svr_nodeID = 0;  // currently unused
+  tcb_t->svr_portNum = port;   
+  tcb_t->client_nodeID = 0;  // currently unused
+  tcb_t->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
+  tcb_t->state = CLOSED; 
+  tcb_t->next_seqNum = 0; 
+  tcb_t->bufMutex = NULL; 
+  tcb_t->sendBufHead = NULL; 
+  tcb_t->sendBufunSent = NULL; 
+  tcb_t->sendBufTail = NULL; 
+  tcb_t->unAck_segNum = 0; 
+
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] == NULL) {
+      port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
+      p2s_hash_t[hash_idx] = p2s;
+      return 0;
+    }
+  }
+  return -1;
 }
 
 // Accept connection from srt client
@@ -75,7 +134,59 @@ int srt_server_sock(unsigned int port) {
 //
 
 int srt_server_accept(int sockfd) {
-	return 0;
+  // set the state of corresponding tcb entry
+  tcb_table[sockfd]->state = LISTENING;
+
+  // timer
+  return try_in_time(sockfd, LISTENING);
+}
+
+int is_timeout(struct timespec tstart, struct timespec tend, int action) {
+  if(tend.tv_sec - tstart.tv_sec > 0)
+    return 1;
+  else if((action == SYNSENT) 
+    && (tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS))
+    return 1;
+  else if((action == FINWAIT) 
+    && (tend.tv_nsec - tstart.tv_nsec > FINSEG_TIMEOUT_NS))
+    return 1;
+  else
+    return 0;
+}
+
+void send_control_msg(int sockfd, int action) {
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
+
+  // configure control msg type
+  if (action == LISTENING){
+      segPtr->header.type = SYN;
+  } else {
+    printf("action not found!s\n");
+  }
+
+  sendseg(overlay_conn, segPtr);
+}
+
+int try_in_time(int sockfd, int action) {
+  int try_cnt = 1;
+  while(try_cnt++ <= FIN_MAX_RETRY) {
+    struct timespec tstart={0,0}, tend={0,0};
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    while(!is_timeout(tstart, tend, action)) {
+      sleep(50);
+      if(action == LISTENING 
+        && tcb_table[sockfd]->state == CONNECTED)
+        return 1;
+      else if(action == FINWAIT
+        && tcb_table[sockfd]->state == CLOSED)
+        return 1;
+    }
+  }
+  tcb_table[sockfd]->state = CLOSED;
+  return -1;
 }
 
 // Receive data from a srt client

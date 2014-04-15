@@ -177,6 +177,8 @@ void send_control_msg(int sockfd, int action) {
   // configure control msg type
   if (action == SYNSENT){
       segPtr->header.type = SYN;
+  } else if (action == FINWAIT) {
+      segPtr->header.type = FIN;
   }
 
   sendseg(overlay_conn, segPtr);
@@ -227,6 +229,7 @@ int try_in_time(int sockfd, int action) {
       else if(action == FINWAIT
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
+      clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
   tcb_table[sockfd]->state = CLOSED;
