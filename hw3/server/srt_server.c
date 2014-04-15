@@ -99,6 +99,88 @@ int srt_server_sock(unsigned int port) {
   return -1;
 }
 
+// Accept connection from srt client
+//
+// This function gets the TCB pointer using the sockfd and changes the state of the connetion to
+// LISTENING. It then starts a timer to ‘‘busy wait’’ until the TCB’s state changes to CONNECTED
+// (seghandler does this when a SYN is received). It waits in an infinite loop for the state
+// transition before proceeding and to return 1 when the state change happens, dropping out of
+// the busy wait loop. You can implement this blocking wait in different ways, if you wish.
+//
+
+int srt_server_accept(int sockfd) {
+  // set the state of corresponding tcb entry
+  if (state_transfer(LISTENING) == -1)
+    printf("%s: state tranfer err!\n", __function__);
+
+  return keep_try(sockfd, LISTENING, -1, -1);
+}
+
+// Receive data from a srt client
+//
+// Receive data to a srt client. Recall this is a unidirectional transport
+// where DATA flows from the client to the server. Signaling/control messages
+// such as SYN, SYNACK, etc.flow in both directions. You do not need to implement
+// this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
+//
+int srt_server_recv(int sockfd, void* buf, unsigned int length) {
+	return 1;
+}
+
+// Close the srt server
+//
+// This function calls free() to free the TCB entry. It marks that entry in TCB as NULL
+// and returns 1 if succeeded (i.e., was in the right state to complete a close) and -1
+// if fails (i.e., in the wrong state).
+//
+
+int srt_server_close(int sockfd) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
+  if(tcb_table[sockfd]->state != CLOSED)
+    return -1;
+  else{
+    free(tcb_table[sockfd]);
+    tcb_table[sockfd] = NULL;
+    return 1;
+  }
+}
+
+// Thread handles incoming segments
+//
+// This is a thread  started by srt_server_init(). It handles all the incoming
+// segments from the client. The design of seghanlder is an infinite loop that calls snp_recvseg(). If
+// snp_recvseg() fails then the overlay connection is closed and the thread is terminated. Depending
+// on the state of the connection when a segment is received  (based on the incoming segment) various
+// actions are taken. See the client FSM for more details.
+//
+
+void *seghandler(void* arg) {  
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  while(1) {
+    if(recvseg(overlay_conn, segPtr) == 1){
+      int sockfd = p2s_hash_get(segPtr->header.dest_port);
+      if(tsegPtr->header.type == SYN){
+        if (state_transfer(CONNECTED) == -1)
+          printf("%s: state tranfer err!\n", __function__);
+        send_control_msg(sockfd, SYNACK);
+      }
+      else if(tsegPtr->header.type == FIN){
+        if (state_transfer(CLOSEWAIT) == -1)
+          printf("%s: state tranfer err!\n", __function__);
+        send_control_msg(sockfd, FINACK);
+      }
+      else{
+        printf("%s: unkown msg type!\n", __function__);
+        return -1;
+      }
+    }else{
+      return -1;
+    }
+  }
+}
+
 int init_tcb(svr_tcb_t* tcb_t, int port) {
   tcb_t->svr_nodeID = 0;  // currently unused
   tcb_t->svr_portNum = port;   
@@ -124,23 +206,6 @@ int init_tcb(svr_tcb_t* tcb_t, int port) {
   return -1;
 }
 
-// Accept connection from srt client
-//
-// This function gets the TCB pointer using the sockfd and changes the state of the connetion to
-// LISTENING. It then starts a timer to ‘‘busy wait’’ until the TCB’s state changes to CONNECTED
-// (seghandler does this when a SYN is received). It waits in an infinite loop for the state
-// transition before proceeding and to return 1 when the state change happens, dropping out of
-// the busy wait loop. You can implement this blocking wait in different ways, if you wish.
-//
-
-int srt_server_accept(int sockfd) {
-  // set the state of corresponding tcb entry
-  tcb_table[sockfd]->state = LISTENING;
-
-  // timer
-  return keep_try(sockfd, LISTENING, -1, -1);
-}
-
 int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
   if(tend.tv_sec - tstart.tv_sec > 0)
     return 1;
@@ -150,22 +215,22 @@ int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
     return 0;
 }
 
-void send_control_msg(int sockfd, int action) {
+void send_control_msg(int sockfd, int type) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
   segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
-
-  // configure control msg type
-  if (action == LISTENING){
-      segPtr->header.type = SYNACK;
-  } else {
-    printf("send_control_msg: action not found!s\n");
-  }
+  segPtr->header.type = type;
 
   sendseg(overlay_conn, segPtr);
 }
 
 int keep_try(int sockfd, int action, int maxtry, long timeout) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   int try_cnt = 1;
   while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
     struct timespec tstart={0,0}, tend={0,0};
@@ -184,47 +249,51 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
-  tcb_table[sockfd]->state = CLOSED;
+  if (state_transfer(CLOSED) == -1)
+    printf("%s: state tranfer err!\n", __function__);
   return -1;
 }
 
-// Receive data from a srt client
-//
-// Receive data to a srt client. Recall this is a unidirectional transport
-// where DATA flows from the client to the server. Signaling/control messages
-// such as SYN, SYNACK, etc.flow in both directions. You do not need to implement
-// this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
-//
-int srt_server_recv(int sockfd, void* buf, unsigned int length) {
-	return 1;
-}
+int state_transfer(int new_state) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
 
-// Close the srt server
-//
-// This function calls free() to free the TCB entry. It marks that entry in TCB as NULL
-// and returns 1 if succeeded (i.e., was in the right state to complete a close) and -1
-// if fails (i.e., in the wrong state).
-//
-
-int srt_server_close(int sockfd) {
-  if(tcb_table[sockfd]->state != CLOSED)
-    return -1;
-  else{
-    free(tcb_table[sockfd]);
-    tcb_table[sockfd] = NULL;
-    return 1;
+  if(new_state == CLOSED) {
+    if (tcb_table[sockfd]->state == SYNSENT
+      || tcb_table[sockfd]->state == FINWAIT) {
+      tcb_table[sockfd]->state = CLOSED;
+      return 0;
+    }
+  } else if (new_state == CONNECTED) {
+    if (tcb_table[sockfd]->state == SYNSENT) {
+      tcb_table[sockfd]->state = CONNECTED;
+      return 0;
+    }
+  } else if (new_state == SYNSENT) {
+    if (tcb_table[sockfd]->state == CLOSED
+      || tcb_table[sockfd]->state == SYNSENT) {
+      tcb_table[sockfd]->state = SYNSENT;
+      return 0;
+    }
+  } else if (new_state == FINWAIT) {
+    if (tcb_table[sockfd]->state == CONNECTED
+      || tcb_table[sockfd]->state == FINWAIT) {
+      tcb_table[sockfd]->state = FINWAIT;
+      return 0;
+    }
   }
+  return -1;
 }
 
-// Thread handles incoming segments
-//
-// This is a thread  started by srt_server_init(). It handles all the incoming
-// segments from the client. The design of seghanlder is an infinite loop that calls snp_recvseg(). If
-// snp_recvseg() fails then the overlay connection is closed and the thread is terminated. Depending
-// on the state of the connection when a segment is received  (based on the incoming segment) various
-// actions are taken. See the client FSM for more details.
-//
-
-void *seghandler(void* arg) {
-  return 0;
+int p2s_hash_get(int port) {
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] != NULL 
+      && p2s_hash_t[hash_idx]->port == port) {
+      return p2s_hash_t[hash_idx]->sock;
+    }
+  }
+  printf("p2s_hash_get err\n");
+  return -1;
 }

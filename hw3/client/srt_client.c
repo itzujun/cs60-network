@@ -150,9 +150,8 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
   if (state_transfer(SYNSENT) == -1)
     printf("%s: state tranfer err!\n", __function__);
-  send_control_msg(sockfd, SYNSENT);
 
-  // timer
+  send_control_msg(sockfd, SYN);
   return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYNSEG_TIMEOUT_NS);
 }
 
@@ -165,19 +164,14 @@ int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
     return 0;
 }
 
-void send_control_msg(int sockfd, int action) {
+void send_control_msg(int sockfd, int type) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
   segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
-
-  // configure control msg type
-  if (action == SYNSENT){
-    segPtr->header.type = SYN;
-  } else if (action == FINWAIT) {
-    segPtr->header.type = FIN;
-  } else {
-    printf("send_control_msg: action not found!s\n");
-  }
+  segPtr->header.type = type;
 
   sendseg(overlay_conn, segPtr);
 }
@@ -207,13 +201,16 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 int srt_client_disconnect(int sockfd) {
   // set the state of corresponding tcb entry
   if (state_transfer(FINWAIT) == -1)
-    printf("srt_client_connect: state tranfer err!\n");
+    printf("%s: state tranfer err!\n", __function__);
 
-  send_control_msg(sockfd, FINWAIT);
+  send_control_msg(sockfd, FIN);
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
 }
 
 int state_transfer(int new_state) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   if(new_state == CLOSED) {
     if (tcb_table[sockfd]->state == SYNSENT
       || tcb_table[sockfd]->state == FINWAIT) {
@@ -242,6 +239,9 @@ int state_transfer(int new_state) {
 }
 
 int keep_try(int sockfd, int action, int maxtry, long timeout) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   int try_cnt = 1;
   while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
     struct timespec tstart={0,0}, tend={0,0};
@@ -275,13 +275,14 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
 //
 
 int srt_client_close(int sockfd) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __function__);
+
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
-  else{
-    free(tcb_table[sockfd]);
-    tcb_table[sockfd] = NULL;
-    return 1;
-  }
+  free(tcb_table[sockfd]);
+  tcb_table[sockfd] = NULL;
+  return 1;
 }
 
 // The thread handles incoming segments
@@ -323,10 +324,10 @@ int p2s_hash_get(int port) {
     if(p2s_hash_t[hash_idx] != NULL 
       && p2s_hash_t[hash_idx]->port == port) {
       return p2s_hash_t[hash_idx]->sock;
+    }
   }
-}
-printf("p2s_hash_get err\n");
-return -1;
+  printf("p2s_hash_get err\n");
+  return -1;
 }
 
 
