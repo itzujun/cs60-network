@@ -164,9 +164,10 @@ void* sendBuf_timer(void* clienttcb);
 * following are helper functions
 */
 int init_tcb(client_tcb_t* tcb_t, int client_port);
-int is_timeout(struct timespec tstart, struct timespec tend, int action);
+int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns);
 void send_control_msg(int sockfd, int action);
-int try_in_time(int sockfd, int action);
+int keep_try(int sockfd, int action, int maxtry, long timeout);
 int p2s_hash_get(int port);
+int state_transfer(int new_state);
 
 #endif

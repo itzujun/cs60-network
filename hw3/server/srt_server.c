@@ -138,17 +138,13 @@ int srt_server_accept(int sockfd) {
   tcb_table[sockfd]->state = LISTENING;
 
   // timer
-  return try_in_time(sockfd, LISTENING);
+  return keep_try(sockfd, LISTENING, -1, -1);
 }
 
-int is_timeout(struct timespec tstart, struct timespec tend, int action) {
+int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
   if(tend.tv_sec - tstart.tv_sec > 0)
     return 1;
-  else if((action == SYNSENT) 
-    && (tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS))
-    return 1;
-  else if((action == FINWAIT) 
-    && (tend.tv_nsec - tstart.tv_nsec > FINSEG_TIMEOUT_NS))
+  else if(tend.tv_nsec - tstart.tv_nsec > timeout_ns)
     return 1;
   else
     return 0;
@@ -161,21 +157,21 @@ void send_control_msg(int sockfd, int action) {
 
   // configure control msg type
   if (action == LISTENING){
-      segPtr->header.type = SYN;
+      segPtr->header.type = SYNACK;
   } else {
-    printf("action not found!s\n");
+    printf("send_control_msg: action not found!s\n");
   }
 
   sendseg(overlay_conn, segPtr);
 }
 
-int try_in_time(int sockfd, int action) {
+int keep_try(int sockfd, int action, int maxtry, long timeout) {
   int try_cnt = 1;
-  while(try_cnt++ <= FIN_MAX_RETRY) {
+  while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
     struct timespec tstart={0,0}, tend={0,0};
     clock_gettime(CLOCK_MONOTONIC, &tstart);
     clock_gettime(CLOCK_MONOTONIC, &tend);
-    while(!is_timeout(tstart, tend, action)) {
+    while(timeout == -1 || !is_timeout(tstart, tend, timeout)) {
       sleep(50);
       if(action == LISTENING 
         && tcb_table[sockfd]->state == CONNECTED)
@@ -183,6 +179,9 @@ int try_in_time(int sockfd, int action) {
       else if(action == FINWAIT
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
+      else
+        printf("keep_try: action not found!s\n");
+      clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
   tcb_table[sockfd]->state = CLOSED;
@@ -208,7 +207,13 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length) {
 //
 
 int srt_server_close(int sockfd) {
-	return 0;
+  if(tcb_table[sockfd]->state != CLOSED)
+    return -1;
+  else{
+    free(tcb_table[sockfd]);
+    tcb_table[sockfd] = NULL;
+    return 1;
+  }
 }
 
 // Thread handles incoming segments
