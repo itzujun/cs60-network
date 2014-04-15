@@ -164,6 +164,7 @@ void* sendBuf_timer(void* clienttcb);
 * following are helper functions
 */
 void init_tcb(client_tcb_t* tcb_t);
-int is_syn_timeout(struct timespec tstart, struct timespec tend);
+int is_timeout(struct timespec tstart, struct timespec tend, int action));
 void send_control_msg(int sockfd, int action);
+int try_in_time(int sockfd, int action);
 #endif

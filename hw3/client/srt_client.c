@@ -128,26 +128,17 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   send_control_msg(sockfd, server_port, SYNSENT);
 
   // timer
-  int try_cnt = 1;
-  while(try_cnt++ <= SYN_MAX_RETRY) {
-    struct timespec tstart={0,0}, tend={0,0};
-    clock_gettime(CLOCK_MONOTONIC, &tstart);
-    clock_gettime(CLOCK_MONOTONIC, &tend);
-    while(!is_syn_timeout(tstart, tend, SYNSENT)) {
-      sleep(50);
-      if(tcb_table[sockfd]->state == CONNECTED)
-        return 1;
-    }
-  }
-  tcb_table[sockfd]->state = CLOSED;
-
-  return -1;
+  return try_in_time(sockfd, SYNSENT);
 }
 
 int is_timeout(struct timespec tstart, struct timespec tend, int action) {
   if(tend.tv_sec - tstart.tv_sec > 0)
     return 1;
-  else if(tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS)
+  else if((action == SYNSENT) 
+    && (tend.tv_nsec - tstart.tv_nsec > SYNSEG_TIMEOUT_NS)
+    return 1;
+  else if((action == FINWAIT) 
+    && (tend.tv_nsec - tstart.tv_nsec > FINSEG_TIMEOUT_NS)
     return 1;
   else
     return 0;
@@ -189,9 +180,34 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 // the state transitions to CLOSED and -1 is returned.
 
 int srt_client_disconnect(int sockfd) {
-  return 0;
+    // set the state of corresponding tcb entry
+  tcb_table[sockfd]->svr_portNum = server_port;
+  tcb_table[sockfd]->state = FINWAIT;
+  send_control_msg(sockfd, server_port, FINWAIT);
+
+  // timer
+  return try_in_time(sockfd, FINWAIT);
 }
 
+int try_in_time(int sockfd, int action) {
+  int try_cnt = 1;
+  while(try_cnt++ <= FIN_MAX_RETRY) {
+    struct timespec tstart={0,0}, tend={0,0};
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    while(!is_syn_timeout(tstart, tend, action)) {
+      sleep(50);
+      if(action == SYNSENT 
+        && tcb_table[sockfd]->state == CONNECTED)
+        return 1;
+      else if(action == FINWAIT
+        && tcb_table[sockfd]->state == CLOSED)
+        return 1;
+    }
+  }
+  tcb_table[sockfd]->state = CLOSED;
+  return -1;
+}
 
 // Close srt client
 
@@ -203,7 +219,12 @@ int srt_client_disconnect(int sockfd) {
 //
 
 int srt_client_close(int sockfd) {
-	return 0;
+  if(tcb_table[sockfd]->state != CLOSED)
+    return -1;
+  else{
+    free(tcb_table[sockfd]);
+    return 1;
+  }
 }
 
 // The thread handles incoming segments
