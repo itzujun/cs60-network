@@ -59,7 +59,7 @@ void srt_client_init(int conn) {
   bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
   // creating new thread
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
-    seghandler, (void *) NULL);
+    (void *) seghandler, (void *) sockfd);
   if (pthread_err != 0) {
     printf("Create thread Failed!\n");
     return;
@@ -236,8 +236,20 @@ int srt_client_close(int sockfd) {
 // actions are taken. See the client FSM for more details.
 //
 
-void *seghandler(void* arg) {
-  return 0;
+int seghandler(int sockfd) {
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  while(true) {
+    if(recvseg(svr_conn, segPtr) == 1){
+      if(tcb_table[sockfd]->state == SYNSENT)
+        tcb_table[sockfd]->state = CONNECTED;
+      else if(tcb_table[sockfd]->state == FINWAIT)
+        tcb_table[sockfd]->state = CLOSED;
+      else
+        return -1;
+    }else{
+      return -1;
+    }
+  }
 }
 
 
