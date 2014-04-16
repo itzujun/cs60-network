@@ -217,7 +217,7 @@ int srt_client_disconnect(int sockfd) {
     printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, FIN);
-  printf("FIN sent\n");
+  printf("FIN sent to sockfd %d\n", sockfd);
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
 }
 
@@ -262,15 +262,12 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
     clock_gettime(CLOCK_MONOTONIC, &tstart);
     clock_gettime(CLOCK_MONOTONIC, &tend);
     while(timeout == -1 || !is_timeout(tstart, tend, timeout)) {
-      sleep(50);
       if(action == SYNSENT 
         && tcb_table[sockfd]->state == CONNECTED)
         return 1;
       else if(action == FINWAIT
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
-      else
-        printf("%s: action not found!s\n", __func__);
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
@@ -294,12 +291,13 @@ int srt_client_close(int sockfd) {
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
 
-  printf("about to free\n");
+  printf("about to free sockfd %d\n", sockfd);
 
-   // delete entry in hash table
+  // delete entry in hash table
   int port = tcb_table[sockfd]->client_portNum;
-  free(p2s_hash_t[p2s_hash_get(port)]);
-  p2s_hash_t[port] = NULL;
+  int idx = p2s_hash_get_idx(port);
+  free(p2s_hash_t[idx]);
+  p2s_hash_t[idx] = NULL;
 
   printf("hash_table freed\n");
 
@@ -308,8 +306,6 @@ int srt_client_close(int sockfd) {
   tcb_table[sockfd] = NULL;
 
   printf("tcb_table freed\n");
-
-
 
   return 1;
 }
@@ -327,7 +323,7 @@ int seghandler() {
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   while(1) {
     if(recvseg(overlay_conn, segPtr) == 1){
-      int sockfd = p2s_hash_get(segPtr->header.dest_port);
+      int sockfd = p2s_hash_get_sock(segPtr->header.dest_port);
       if(segPtr->header.type == SYNACK){
         printf("SYNACK get\n");
         if (state_transfer(sockfd, CONNECTED) == -1)
@@ -348,19 +344,24 @@ int seghandler() {
   }
 }
 
-int p2s_hash_get(int port) {
-  int i;
-  printf("the port number is %d\n", port);
-  for(i = 0; i < TCB_TABLE_SIZE; i++) {
-    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
-    if(p2s_hash_t[hash_idx] != NULL 
-      && p2s_hash_t[hash_idx]->port == port) {
-      return p2s_hash_t[hash_idx]->sock;
-    }
-  }
-  printf("%s: no such port to get\n", __func__);
-  return -1;
+int p2s_hash_get_sock(int port) {
+  return p2s_hash_t[p2s_hash_get_idx(port)]->sock;
 }
 
+int p2s_hash_get_idx(int port) {
+  int i;
+  printf("%s: search for port %d\n", __func__, port);
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] != NULL )
+      printf("%d %d\n", p2s_hash_t[hash_idx]->sock, p2s_hash_t[hash_idx]->port);
+    if(p2s_hash_t[hash_idx] != NULL 
+      && p2s_hash_t[hash_idx]->port == port) {
+      return hash_idx;
+    }
+  }
+  printf("%s: err\n", __func__);
+  return -1;  
+}
 
 

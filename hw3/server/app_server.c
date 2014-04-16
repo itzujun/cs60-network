@@ -82,10 +82,12 @@ int main() {
 		printf("can't destroy srt server\n");
 		exit(1);
 	}				
+	printf("server 1 destroyed\n");
 	if(srt_server_close(sockfd2)<0) {
 		printf("can't destroy srt server\n");
 		exit(1);
 	}				
+	printf("server 2 destroyed\n");
 
 	//close tcp connection to the client
 	overlay_stop(overlay_conn);

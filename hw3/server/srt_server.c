@@ -13,8 +13,8 @@ typedef struct port_sockfd_pair{
   int sock;
 }port_sock;
 
-int overlay_conn, thread_count = 0, fin_waiting = 0;;
-const int TCB_TABLE_SIZE = 11;
+int overlay_conn, thread_count = 0;;
+const int TCB_TABLE_SIZE = MAX_TRANSPORT_CONNECTIONS;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
 svr_tcb_t **tcb_table;
@@ -91,7 +91,7 @@ int srt_server_sock(unsigned int port) {
     if (tcb_table[idx] == NULL) {
       // creat a tcb entry
       tcb_table[idx] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
-      if(init_tcb(tcb_table[idx], port) == -1) 
+      if(init_tcb(idx, port) == -1) 
         printf("hash table insert failed!\n");
       printf("sock on port %d created\n", port);
       return idx;
@@ -136,19 +136,21 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length) {
 //
 
 int srt_server_close(int sockfd) {
+  printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
   if(tcb_table[sockfd]->state != CLOSED)
-    return -1;
+    printf("%s: force to close server\n", __func__);
+
+  // delete entry in hash table
+  int port = tcb_table[sockfd]->svr_portNum;
+  int idx = p2s_hash_get_idx(port);
+  free(p2s_hash_t[idx]);
+  p2s_hash_t[idx] = NULL;
 
   // delete entry in tcb table
   free(tcb_table[sockfd]);
   tcb_table[sockfd] = NULL;
-
-  // delete entry in hash table
-  int port = tcb_table[sockfd]->svr_portNum;
-  free(tcb_table[port]);
-  p2s_hash_t[port] = NULL;
 
   return 1;
 }
@@ -166,22 +168,23 @@ void *seghandler(void* arg) {
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   while(1) {
     if(recvseg(overlay_conn, segPtr) == 1){
-      int sockfd = p2s_hash_get(segPtr->header.dest_port);
+      int sockfd = p2s_hash_get_sock(segPtr->header.dest_port);
       if(segPtr->header.type == SYN){
         if (state_transfer(sockfd, CONNECTED) == -1)
-          printf("%s: state tranfer err!\n", __func__);
-        tcb_table[sockfd].client = segPtr->header.src_port; // client port, GET!
+          printf("%s: transfer err!\n", __func__);
+        tcb_table[sockfd]->client_portNum = segPtr->header.src_port; // client port, GET!
         send_control_msg(sockfd, SYNACK);
       }
       else if(segPtr->header.type == FIN){
-        if (state_transfer(sockfd, CLOSEWAIT) == -1)
-          printf("%s: state tranfer err!\n", __func__);
         send_control_msg(sockfd, FINACK);
-        if(fin_waiting == 0){
-          fin_waiting = 1;
+        printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+        if (state_transfer(sockfd, CLOSEWAIT) == -1){
+          printf("FIN duplicate!\n");
+        }
+        else{
           // creating new thread
           int pthread_err = pthread_create(threads + (thread_count++), NULL,
-            (void *) close_wait, (void *) CLOSEWAIT_TIME);
+            (void *) close_wait, (void *) sockfd);
           if (pthread_err != 0) {
             printf("Create thread Failed!\n");
             return;
@@ -200,11 +203,14 @@ void *seghandler(void* arg) {
 
 void *close_wait(int sockfd) { 
   sleep(CLOSEWAIT_TIME);
+  printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
+  printf("%s: after close_wait current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
 }
 
-int init_tcb(svr_tcb_t* tcb_t, int port) {
+int init_tcb(int sockfd, int port) {
+  svr_tcb_t* tcb_t = tcb_table[sockfd];
   tcb_t->svr_nodeID = 0;  // currently unused
   tcb_t->svr_portNum = port;   
   tcb_t->client_nodeID = 0;  // currently unused
@@ -220,6 +226,8 @@ int init_tcb(svr_tcb_t* tcb_t, int port) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] == NULL) {
       port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
+      p2s->port = port;
+      p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
       return 0;
     }
@@ -258,7 +266,6 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
     clock_gettime(CLOCK_MONOTONIC, &tstart);
     clock_gettime(CLOCK_MONOTONIC, &tend);
     while(timeout == -1 || !is_timeout(tstart, tend, timeout)) {
-      sleep(50);
       if(action == LISTENING 
         && tcb_table[sockfd]->state == CONNECTED)
         return 1;
@@ -274,21 +281,20 @@ int state_transfer(int sockfd, int new_state) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
-  int curr_state = tcb_table[sockfd]->state;
   if(new_state == CLOSED) {
-    if (curr_state == CLOSEWAIT) {
-      curr_state = CLOSED;
+    if (tcb_table[sockfd]->state == CLOSEWAIT) {
+      tcb_table[sockfd]->state = CLOSED;
       return 0;
     }
   } else if (new_state == CLOSEWAIT) {
-    if (curr_state == CLOSEWAIT
-      || curr_state == CONNECTED) {
+    if (tcb_table[sockfd]->state == CLOSEWAIT
+      || tcb_table[sockfd]->state == CONNECTED) {
       tcb_table[sockfd]->state = CLOSEWAIT;
     return 0;
   }
 } else if (new_state == CONNECTED) {
-  if (curr_state == CONNECTED
-    || curr_state == LISTENING) {
+  if (tcb_table[sockfd]->state == CONNECTED
+    || tcb_table[sockfd]->state == LISTENING) {
     tcb_table[sockfd]->state = CONNECTED;
   return 0;
 }
@@ -301,15 +307,19 @@ int state_transfer(int sockfd, int new_state) {
 return -1;
 }
 
-int p2s_hash_get(int port) {
+int p2s_hash_get_sock(int port) {
+  return p2s_hash_t[p2s_hash_get_idx(port)]->sock;
+}
+
+int p2s_hash_get_idx(int port) {
   int i;
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] != NULL 
       && p2s_hash_t[hash_idx]->port == port) {
-      return p2s_hash_t[hash_idx]->sock;
+      return hash_idx;
+    }
   }
-}
-printf("%s: err\n", __func__);
-return -1;
+  printf("%s: err\n", __func__);
+  return -1;  
 }

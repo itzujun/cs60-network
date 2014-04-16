@@ -128,11 +128,12 @@ void* seghandler(void* arg);
 /**
 * following are helper functions
 */
-int init_tcb(svr_tcb_t* tcb_t, int client_port);
+int init_tcb(int sockfd, int client_port);
 int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns);
 void send_control_msg(int sockfd, int type);
 int keep_try(int sockfd, int action, int maxtry, long timeout);
-int p2s_hash_get(int port);
+int p2s_hash_get_sock(int port);
+int p2s_hash_get_idx(int port);
 int state_transfer(int sockfd, int new_state);
 void* close_wait(int sockfd);
 

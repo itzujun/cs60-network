@@ -11,6 +11,7 @@ int sendseg(int connection, seg_t* segPtr) {
 	bufstart[1] = '&';
 	bufend[0] = '!';
 	bufend[1] = '#';
+
 	if (send(connection, bufstart, 2, 0) < 0) {
 		return -1;
 	}
