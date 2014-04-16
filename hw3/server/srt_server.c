@@ -245,7 +245,7 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
       else
-        printf("keep_try: action not found!s\n");
+        printf("%s: action not found!s\n", __function__);
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
@@ -294,6 +294,6 @@ int p2s_hash_get(int port) {
       return p2s_hash_t[hash_idx]->sock;
     }
   }
-  printf("p2s_hash_get err\n");
+  printf("%s: err\n", __function__);
   return -1;
 }

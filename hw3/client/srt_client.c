@@ -73,7 +73,7 @@ void srt_client_init(int conn) {
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
     (void *) seghandler, (void *) NULL);
   if (pthread_err != 0) {
-    printf("Create thread Failed!\n");
+    printf("%s: Create thread Failed!\n", __function__);
     return;
   }
 
@@ -100,7 +100,7 @@ int srt_client_sock(unsigned int client_port) {
       // creat a tcb entry
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
       if(init_tcb(tcb_table[idx], client_port) == -1) 
-        printf("hash table insert failed!\n");
+        printf("%s: hash table insert failed!\n", __function__);
       return idx;
     }
   }
@@ -256,12 +256,12 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
       else
-        printf("keep_try: action not found!s\n");
+        printf("%s: action not found!s\n", __function__);
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
   if (state_transfer(CLOSED) == -1)
-    printf("keep_try: state tranfer err!\n");
+    printf("%s: state tranfer err!\n", __function__);
   return -1;
 }
 
@@ -326,7 +326,7 @@ int p2s_hash_get(int port) {
       return p2s_hash_t[hash_idx]->sock;
     }
   }
-  printf("p2s_hash_get err\n");
+  printf("%s: err\n", , __function__);
   return -1;
 }
 
