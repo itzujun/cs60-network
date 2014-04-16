@@ -17,7 +17,8 @@ int overlay_start() {
 	
 	char hostname_buf[50];
 	printf("Enter server name to connect:");
-	scanf("%s",hostname_buf);
+	// scanf("%s",hostname_buf);
+	sprintf(hostname_buf, "%s", "localhost");;	// @TODO: this is just for test
 
 	hostInfo = gethostbyname(hostname_buf);
 	if(!hostInfo) {

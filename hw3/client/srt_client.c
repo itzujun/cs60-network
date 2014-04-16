@@ -102,6 +102,7 @@ int srt_client_sock(unsigned int client_port) {
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
       if(init_tcb(tcb_table[idx], client_port) == -1) 
         printf("%s: hash table insert failed!\n", __func__);
+      printf("sock on port %d created\n", client_port);
       return idx;
     }
   }
@@ -151,7 +152,10 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
   if (state_transfer(sockfd, SYNSENT) == -1)
     printf("%s: state tranfer err!\n", __func__);
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
 
+  tcb_table[sockfd].svr_portNum = server_port;
   send_control_msg(sockfd, SYN);
   return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYNSEG_TIMEOUT_NS);
 }
@@ -278,11 +282,18 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
 int srt_client_close(int sockfd) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
-
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
+
+  // delete entry in tcb table
   free(tcb_table[sockfd]);
   tcb_table[sockfd] = NULL;
+
+  // delete entry in hash table
+  int port = tcb_table[sockfd]->client_portNum;
+  free(tcb_table[port]);
+  p2s_hash_t[port] = NULL;
+
   return 1;
 }
 
@@ -320,6 +331,7 @@ int seghandler() {
 
 int p2s_hash_get(int port) {
   int i;
+  printf("the port number is %d\n", port);
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] != NULL 
@@ -327,7 +339,7 @@ int p2s_hash_get(int port) {
       return p2s_hash_t[hash_idx]->sock;
     }
   }
-  printf("%s: err\n", __func__);
+  printf("%s: no such port to get\n", __func__);
   return -1;
 }
 

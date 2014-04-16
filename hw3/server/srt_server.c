@@ -93,6 +93,7 @@ int srt_server_sock(unsigned int port) {
       tcb_table[idx] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
       if(init_tcb(tcb_table[idx], port) == -1) 
         printf("hash table insert failed!\n");
+      printf("sock on port %d created\n", port);
       return idx;
     }
   }
@@ -137,14 +138,19 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length) {
 int srt_server_close(int sockfd) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
-
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
-  else{
-    free(tcb_table[sockfd]);
-    tcb_table[sockfd] = NULL;
-    return 1;
-  }
+
+  // delete entry in tcb table
+  free(tcb_table[sockfd]);
+  tcb_table[sockfd] = NULL;
+
+  // delete entry in hash table
+  int port = tcb_table[sockfd]->svr_portNum;
+  free(tcb_table[port]);
+  p2s_hash_t[port] = NULL;
+
+  return 1;
 }
 
 // Thread handles incoming segments
@@ -164,6 +170,7 @@ void *seghandler(void* arg) {
       if(segPtr->header.type == SYN){
         if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: state tranfer err!\n", __func__);
+        tcb_table[sockfd].client = segPtr->header.src_port; // client port, GET!
         send_control_msg(sockfd, SYNACK);
       }
       else if(segPtr->header.type == FIN){
@@ -234,8 +241,8 @@ void send_control_msg(int sockfd, int type) {
     printf("%s: tcb not found!\n", __func__);
 
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
-  segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
-  segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.src_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->client_portNum;
   segPtr->header.type = type;
 
   sendseg(overlay_conn, segPtr);
@@ -255,8 +262,6 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
       if(action == LISTENING 
         && tcb_table[sockfd]->state == CONNECTED)
         return 1;
-      else
-        printf("%s: action not found!s\n", __func__);
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
