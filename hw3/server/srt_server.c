@@ -93,7 +93,7 @@ int srt_server_sock(unsigned int port) {
       tcb_table[idx] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
       if(init_tcb(idx, port) == -1) 
         printf("hash table insert failed!\n");
-      printf("sock on port %d created\n", port);
+      // printf("sock on port %d created\n", port);
       return idx;
     }
   }
@@ -136,7 +136,7 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length) {
 //
 
 int srt_server_close(int sockfd) {
-  printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
+  // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
   if(tcb_table[sockfd]->state != CLOSED)
@@ -177,7 +177,7 @@ void *seghandler(void* arg) {
       }
       else if(segPtr->header.type == FIN){
         send_control_msg(sockfd, FINACK);
-        printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+        // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
         if (state_transfer(sockfd, CLOSEWAIT) == -1){
           printf("FIN duplicate!\n");
         }
@@ -203,10 +203,10 @@ void *seghandler(void* arg) {
 
 void *close_wait(int sockfd) { 
   sleep(CLOSEWAIT_TIME);
-  printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
+  // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
-  printf("%s: after close_wait current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
+  // printf("%s: after close_wait current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
 }
 
 int init_tcb(int sockfd, int port) {

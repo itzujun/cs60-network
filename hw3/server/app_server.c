@@ -63,6 +63,7 @@ int main() {
 	}
 	//listen and accept connection from a srt client 
 	srt_server_accept(sockfd);
+	printf("sock 1 accept client successfully\n");
 
 	/*another server*/
 	//create a srt server sock at port 90 
@@ -73,7 +74,7 @@ int main() {
 	}
 	//listen and accept connection from a srt client 
 	srt_server_accept(sockfd2);
-
+	printf("sock 2 accept client successfully\n");
 
 	sleep(10);
 

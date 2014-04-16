@@ -159,8 +159,6 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
     printf("%s: tcb not found!\n", __func__);
 
   tcb_table[sockfd]->svr_portNum = server_port;
-  send_control_msg(sockfd, SYN);
-  printf("control msg SYN sent\n");
   return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYNSEG_TIMEOUT_NS);
 }
 
@@ -182,11 +180,11 @@ void send_control_msg(int sockfd, int type) {
   segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
   segPtr->header.type = type;
 
-  printf("%s: about to sendseg \n", __func__);
+  // printf("%s: about to sendseg \n", __func__);
   if(sendseg(overlay_conn, segPtr) < 0)
     printf("%s: sendseg fail \n", __func__);
-  else
-    printf("%s: sendseg done \n", __func__);
+  // else
+    // printf("%s: sendseg done \n", __func__);
 }
 
 // Send data to a srt server
@@ -216,8 +214,8 @@ int srt_client_disconnect(int sockfd) {
   if (state_transfer(sockfd, FINWAIT) == -1)
     printf("%s: state tranfer err!\n", __func__);
 
-  send_control_msg(sockfd, FIN);
-  printf("FIN sent to sockfd %d\n", sockfd);
+  // send_control_msg(sockfd, FIN);
+  // printf("FIN sent to sockfd %d\n", sockfd);
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
 }
 
@@ -258,6 +256,8 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
 
   int try_cnt = 1;
   while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
+    int type = action == SYNSENT ? SYN : FIN;
+    send_control_msg(sockfd, type);
     struct timespec tstart={0,0}, tend={0,0};
     clock_gettime(CLOCK_MONOTONIC, &tstart);
     clock_gettime(CLOCK_MONOTONIC, &tend);
@@ -291,21 +291,15 @@ int srt_client_close(int sockfd) {
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
 
-  printf("about to free sockfd %d\n", sockfd);
-
   // delete entry in hash table
   int port = tcb_table[sockfd]->client_portNum;
   int idx = p2s_hash_get_idx(port);
   free(p2s_hash_t[idx]);
   p2s_hash_t[idx] = NULL;
 
-  printf("hash_table freed\n");
-
   // delete entry in tcb table
   free(tcb_table[sockfd]);
   tcb_table[sockfd] = NULL;
-
-  printf("tcb_table freed\n");
 
   return 1;
 }
@@ -325,12 +319,12 @@ int seghandler() {
     if(recvseg(overlay_conn, segPtr) == 1){
       int sockfd = p2s_hash_get_sock(segPtr->header.dest_port);
       if(segPtr->header.type == SYNACK){
-        printf("SYNACK get\n");
+        // printf("SYNACK get\n");
         if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }
       else if(segPtr->header.type == FINACK){
-        printf("FINACK get\n");
+        // printf("FINACK get\n");
         if (state_transfer(sockfd, CLOSED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }
@@ -350,11 +344,11 @@ int p2s_hash_get_sock(int port) {
 
 int p2s_hash_get_idx(int port) {
   int i;
-  printf("%s: search for port %d\n", __func__, port);
+  // printf("%s: search for port %d\n", __func__, port);
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] != NULL )
-      printf("%d %d\n", p2s_hash_t[hash_idx]->sock, p2s_hash_t[hash_idx]->port);
+      // printf("%d %d\n", p2s_hash_t[hash_idx]->sock, p2s_hash_t[hash_idx]->port);
     if(p2s_hash_t[hash_idx] != NULL 
       && p2s_hash_t[hash_idx]->port == port) {
       return hash_idx;
