@@ -4,7 +4,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h>
+#include "string.h"
 #include "srt_client.h"
+#define VNAME(x) #x
 #define MAX_THREAD_NUM 11
 
 typedef struct client_tcb client_tcb_t;
@@ -131,6 +133,7 @@ int init_tcb(int sockfd, int port) {
       p2s->port = port;
       p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
+      printf("hash table entry %d -> %d added\n", port, sockfd);
       return 0;
     }
   }
@@ -227,23 +230,27 @@ int state_transfer(int sockfd, int new_state) {
     if (tcb_table[sockfd]->state == SYNSENT
       || tcb_table[sockfd]->state == FINWAIT) {
       tcb_table[sockfd]->state = CLOSED;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
       return 0;
     }
   } else if (new_state == CONNECTED) {
     if (tcb_table[sockfd]->state == SYNSENT) {
       tcb_table[sockfd]->state = CONNECTED;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
       return 0;
     }
   } else if (new_state == SYNSENT) {
     if (tcb_table[sockfd]->state == CLOSED
       || tcb_table[sockfd]->state == SYNSENT) {
       tcb_table[sockfd]->state = SYNSENT;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "SYNSENT");
       return 0;
     }
   } else if (new_state == FINWAIT) {
     if (tcb_table[sockfd]->state == CONNECTED
       || tcb_table[sockfd]->state == FINWAIT) {
       tcb_table[sockfd]->state = FINWAIT;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "FINWAIT");
       return 0;
     }
   }
@@ -296,6 +303,7 @@ int srt_client_close(int sockfd) {
   int idx = p2s_hash_get_idx(port);
   free(p2s_hash_t[idx]);
   p2s_hash_t[idx] = NULL;
+  printf("hash table entry %d -> %d deleted\n", port, sockfd);
 
   // delete entry in tcb table
   free(tcb_table[sockfd]);

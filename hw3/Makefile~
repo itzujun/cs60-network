@@ -1,8 +1,8 @@
 all: cs78
 
 cs78: server/app_server.o client/app_client.o common/seg.o server/srt_server.o client/srt_client.o 
-	gcc -g -Wall -pthread server/app_server.o common/seg.o server/srt_server.o -o server/app_server 
-	gcc -g -Wall -pthread client/app_client.o common/seg.o client/srt_client.o -o client/app_client
+	gcc -g -pthread server/app_server.o common/seg.o server/srt_server.o -o server/app_server 
+	gcc -g -pthread client/app_client.o common/seg.o client/srt_client.o -o client/app_client
 client/app_client.o: client/app_client.c 
 	gcc -pthread -g -c client/app_client.c -o client/app_client.o 
 server/app_server.o: server/app_server.c 

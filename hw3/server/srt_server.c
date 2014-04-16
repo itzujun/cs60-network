@@ -149,6 +149,7 @@ int srt_server_close(int sockfd) {
   int idx = p2s_hash_get_idx(port);
   free(p2s_hash_t[idx]);
   p2s_hash_t[idx] = NULL;
+  printf("hash table entry %d -> %d deleted\n", port, sockfd);
 
   // delete entry in tcb table
   free(tcb_table[sockfd]);
@@ -231,6 +232,7 @@ int init_tcb(int sockfd, int port) {
       p2s->port = port;
       p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
+      printf("hash table entry %d -> %d added\n", port, sockfd);
       return 0;
     }
   }
