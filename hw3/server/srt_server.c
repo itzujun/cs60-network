@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include "srt_server.h"
 #include "../common/constants.h"
+#include "string.h"
+#define VNAME(x) #x
 #define MAX_THREAD_NUM 11
 
 typedef struct svr_tcb svr_tcb_t;
@@ -193,10 +195,10 @@ void *seghandler(void* arg) {
       }
       else{
         printf("%s: unkown msg type!\n", __func__);
-        return -1;
+        return;
       }
     }else{
-      return -1;
+      return;
     }
   }
 }
@@ -284,27 +286,31 @@ int state_transfer(int sockfd, int new_state) {
   if(new_state == CLOSED) {
     if (tcb_table[sockfd]->state == CLOSEWAIT) {
       tcb_table[sockfd]->state = CLOSED;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
       return 0;
     }
   } else if (new_state == CLOSEWAIT) {
     if (tcb_table[sockfd]->state == CLOSEWAIT
       || tcb_table[sockfd]->state == CONNECTED) {
       tcb_table[sockfd]->state = CLOSEWAIT;
-    return 0;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
+      return 0;
+    }
+  } else if (new_state == CONNECTED) {
+    if (tcb_table[sockfd]->state == CONNECTED
+      || tcb_table[sockfd]->state == LISTENING) {
+      tcb_table[sockfd]->state = CONNECTED;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
+      return 0;
+    }
+  } else if (new_state == LISTENING) {
+    if (tcb_table[sockfd]->state == CLOSED) {
+      tcb_table[sockfd]->state = LISTENING;
+      printf("State of sockfd %d transfer to %s\n", sockfd, "LISTENING");
+      return 0;
+    }
   }
-} else if (new_state == CONNECTED) {
-  if (tcb_table[sockfd]->state == CONNECTED
-    || tcb_table[sockfd]->state == LISTENING) {
-    tcb_table[sockfd]->state = CONNECTED;
-  return 0;
-}
-} else if (new_state == LISTENING) {
-  if (tcb_table[sockfd]->state == CLOSED) {
-    tcb_table[sockfd]->state = LISTENING;
-    return 0;
-  }
-}
-return -1;
+  return -1;
 }
 
 int p2s_hash_get_sock(int port) {
