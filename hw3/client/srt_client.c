@@ -149,7 +149,7 @@ int init_tcb(client_tcb_t* tcb_t, int client_port) {
 
 int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
-  if (state_transfer(SYNSENT) == -1)
+  if (state_transfer(sockfd, SYNSENT) == -1)
     printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, SYN);
@@ -201,14 +201,14 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 
 int srt_client_disconnect(int sockfd) {
   // set the state of corresponding tcb entry
-  if (state_transfer(FINWAIT) == -1)
+  if (state_transfer(sockfd, FINWAIT) == -1)
     printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, FIN);
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
 }
 
-int state_transfer(int new_state) {
+int state_transfer(int sockfd, int new_state) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
@@ -261,7 +261,7 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
-  if (state_transfer(CLOSED) == -1)
+  if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
   return -1;
 }
@@ -300,12 +300,12 @@ int seghandler() {
   while(1) {
     if(recvseg(overlay_conn, segPtr) == 1){
       int sockfd = p2s_hash_get(segPtr->header.dest_port);
-      if(tsegPtr->header.type == SYNACK){
-        if (state_transfer(CONNECTED) == -1)
+      if(segPtr->header.type == SYNACK){
+        if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }
-      else if(tsegPtr->header.type == FINACK){
-        if (state_transfer(CLOSED) == -1)
+      else if(segPtr->header.type == FINACK){
+        if (state_transfer(sockfd, CLOSED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }
       else{
@@ -327,7 +327,7 @@ int p2s_hash_get(int port) {
       return p2s_hash_t[hash_idx]->sock;
     }
   }
-  printf("%s: err\n", , __func__);
+  printf("%s: err\n", __func__);
   return -1;
 }
 

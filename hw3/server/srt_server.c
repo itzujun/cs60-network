@@ -110,7 +110,7 @@ int srt_server_sock(unsigned int port) {
 
 int srt_server_accept(int sockfd) {
   // set the state of corresponding tcb entry
-  if (state_transfer(LISTENING) == -1)
+  if (state_transfer(sockfd, LISTENING) == -1)
     printf("%s: state tranfer err!\n", __func__);
 
   return keep_try(sockfd, LISTENING, -1, -1);
@@ -162,19 +162,19 @@ void *seghandler(void* arg) {
     if(recvseg(overlay_conn, segPtr) == 1){
       int sockfd = p2s_hash_get(segPtr->header.dest_port);
       if(segPtr->header.type == SYN){
-        if (state_transfer(CONNECTED) == -1)
+        if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: state tranfer err!\n", __func__);
         send_control_msg(sockfd, SYNACK);
       }
       else if(segPtr->header.type == FIN){
-        if (state_transfer(CLOSEWAIT) == -1)
+        if (state_transfer(sockfd, CLOSEWAIT) == -1)
           printf("%s: state tranfer err!\n", __func__);
         send_control_msg(sockfd, FINACK);
         if(fin_waiting == 0){
           fin_waiting = 1;
           // creating new thread
           int pthread_err = pthread_create(threads + (thread_count++), NULL,
-            (void *) cose_wait, (void *) CLOSEWAIT_TIME);
+            (void *) close_wait, (void *) CLOSEWAIT_TIME);
           if (pthread_err != 0) {
             printf("Create thread Failed!\n");
             return;
@@ -191,9 +191,9 @@ void *seghandler(void* arg) {
   }
 }
 
-void *seghandler(int timeout) { 
-  sleep(timeout);
-  if (state_transfer(CLOSED) == -1)
+void *close_wait(int sockfd) { 
+  sleep(CLOSEWAIT_TIME);
+  if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
 }
 
@@ -260,16 +260,16 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
-  if (state_transfer(CLOSED) == -1)
+  if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
   return -1;
 }
 
-int state_transfer(int new_state) {
+int state_transfer(int sockfd, int new_state) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
-  int curr_state = tcb_table[sockfd]->state
+  int curr_state = tcb_table[sockfd]->state;
   if(new_state == CLOSED) {
     if (curr_state == CLOSEWAIT) {
       curr_state = CLOSED;
@@ -278,18 +278,18 @@ int state_transfer(int new_state) {
   } else if (new_state == CLOSEWAIT) {
     if (curr_state == CLOSEWAIT
       || curr_state == CONNECTED) {
-      tcb_table[sockfd]->state = CONNECTED;
+      tcb_table[sockfd]->state = CLOSEWAIT;
     return 0;
   }
 } else if (new_state == CONNECTED) {
   if (curr_state == CONNECTED
     || curr_state == LISTENING) {
-    tcb_table[sockfd]->state = SYNSENT;
+    tcb_table[sockfd]->state = CONNECTED;
   return 0;
 }
 } else if (new_state == LISTENING) {
   if (tcb_table[sockfd]->state == CLOSED) {
-    tcb_table[sockfd]->state = FINWAIT;
+    tcb_table[sockfd]->state = LISTENING;
     return 0;
   }
 }

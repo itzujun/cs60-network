@@ -133,7 +133,7 @@ int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns);
 void send_control_msg(int sockfd, int type);
 int keep_try(int sockfd, int action, int maxtry, long timeout);
 int p2s_hash_get(int port);
-int state_transfer(int new_state);
-void* seghandler(int timeout);
+int state_transfer(int sockfd, int new_state);
+void* close_wait(int sockfd);
 
 #endif
