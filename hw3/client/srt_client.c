@@ -19,6 +19,7 @@ const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
 client_tcb_t **tcb_table;
 port_sock **p2s_hash_t;
+int thread_count = 0;
 
 /*interfaces to application layer*/
 
@@ -54,10 +55,10 @@ port_sock **p2s_hash_t;
 //
 
 void srt_client_init(int conn) {
-  int thread_count, i;
   overlay_conn = conn;
 
   // init tcb table and port/sock mapping
+  int i;
   tcb_table = (client_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(client_tcb_t*));
   for (i = 0; i < TCB_TABLE_SIZE; i++){
     *(tcb_table + i) = NULL;
@@ -73,7 +74,7 @@ void srt_client_init(int conn) {
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
     (void *) seghandler, (void *) NULL);
   if (pthread_err != 0) {
-    printf("%s: Create thread Failed!\n", __function__);
+    printf("%s: Create thread Failed!\n", __func__);
     return;
   }
 
@@ -100,7 +101,7 @@ int srt_client_sock(unsigned int client_port) {
       // creat a tcb entry
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
       if(init_tcb(tcb_table[idx], client_port) == -1) 
-        printf("%s: hash table insert failed!\n", __function__);
+        printf("%s: hash table insert failed!\n", __func__);
       return idx;
     }
   }
@@ -149,7 +150,7 @@ int init_tcb(client_tcb_t* tcb_t, int client_port) {
 int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
   if (state_transfer(SYNSENT) == -1)
-    printf("%s: state tranfer err!\n", __function__);
+    printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, SYN);
   return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYNSEG_TIMEOUT_NS);
@@ -166,7 +167,7 @@ int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
 
 void send_control_msg(int sockfd, int type) {
   if(tcb_table[sockfd] == NULL)
-    printf("%s: tcb not found!\n", __function__);
+    printf("%s: tcb not found!\n", __func__);
 
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
@@ -201,7 +202,7 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 int srt_client_disconnect(int sockfd) {
   // set the state of corresponding tcb entry
   if (state_transfer(FINWAIT) == -1)
-    printf("%s: state tranfer err!\n", __function__);
+    printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, FIN);
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
@@ -209,7 +210,7 @@ int srt_client_disconnect(int sockfd) {
 
 int state_transfer(int new_state) {
   if(tcb_table[sockfd] == NULL)
-    printf("%s: tcb not found!\n", __function__);
+    printf("%s: tcb not found!\n", __func__);
 
   if(new_state == CLOSED) {
     if (tcb_table[sockfd]->state == SYNSENT
@@ -240,7 +241,7 @@ int state_transfer(int new_state) {
 
 int keep_try(int sockfd, int action, int maxtry, long timeout) {
   if(tcb_table[sockfd] == NULL)
-    printf("%s: tcb not found!\n", __function__);
+    printf("%s: tcb not found!\n", __func__);
 
   int try_cnt = 1;
   while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
@@ -256,12 +257,12 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
         && tcb_table[sockfd]->state == CLOSED)
         return 1;
       else
-        printf("%s: action not found!s\n", __function__);
+        printf("%s: action not found!s\n", __func__);
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
   }
   if (state_transfer(CLOSED) == -1)
-    printf("%s: state tranfer err!\n", __function__);
+    printf("%s: state tranfer err!\n", __func__);
   return -1;
 }
 
@@ -276,7 +277,7 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
 
 int srt_client_close(int sockfd) {
   if(tcb_table[sockfd] == NULL)
-    printf("%s: tcb not found!\n", __function__);
+    printf("%s: tcb not found!\n", __func__);
 
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
@@ -301,14 +302,14 @@ int seghandler() {
       int sockfd = p2s_hash_get(segPtr->header.dest_port);
       if(tsegPtr->header.type == SYNACK){
         if (state_transfer(CONNECTED) == -1)
-          printf("%s: state tranfer err!\n", __function__);
+          printf("%s: state tranfer err!\n", __func__);
       }
       else if(tsegPtr->header.type == FINACK){
         if (state_transfer(CLOSED) == -1)
-          printf("%s: state tranfer err!\n", __function__);
+          printf("%s: state tranfer err!\n", __func__);
       }
       else{
-        printf("%s: unkown msg type!\n", __function__);
+        printf("%s: unkown msg type!\n", __func__);
         return -1;
       }
     }else{
@@ -326,7 +327,7 @@ int p2s_hash_get(int port) {
       return p2s_hash_t[hash_idx]->sock;
     }
   }
-  printf("%s: err\n", , __function__);
+  printf("%s: err\n", , __func__);
   return -1;
 }
 
