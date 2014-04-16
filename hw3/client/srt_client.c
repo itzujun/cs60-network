@@ -14,7 +14,7 @@ typedef struct port_sockfd_pair{
 }port_sock;
 
 int overlay_conn;
-const int TCB_TABLE_SIZE = 11;
+const int TCB_TABLE_SIZE = MAX_TRANSPORT_CONNECTIONS;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
 client_tcb_t **tcb_table;
@@ -100,7 +100,7 @@ int srt_client_sock(unsigned int client_port) {
     if (tcb_table[idx] == NULL) {
       // creat a tcb entry
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
-      if(init_tcb(tcb_table[idx], client_port) == -1) 
+      if(init_tcb(idx, client_port) == -1) 
         printf("%s: hash table insert failed!\n", __func__);
       printf("sock on port %d created\n", client_port);
       return idx;
@@ -109,11 +109,12 @@ int srt_client_sock(unsigned int client_port) {
   return -1;
 }
 
-int init_tcb(client_tcb_t* tcb_t, int client_port) {
+int init_tcb(int sockfd, int port) {
+  client_tcb_t* tcb_t = tcb_table[sockfd];
   tcb_t->svr_nodeID = 0;  // currently unused
   tcb_t->svr_portNum = 0; // @TODO: where to get it??, will be initialized latter  
   tcb_t->client_nodeID = 0;  // currently unused
-  tcb_t->client_portNum = client_port;
+  tcb_t->client_portNum = port;
   tcb_t->state = CLOSED; 
   tcb_t->next_seqNum = 0; 
   tcb_t->bufMutex = NULL; 
@@ -124,9 +125,11 @@ int init_tcb(client_tcb_t* tcb_t, int client_port) {
 
   int i;
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
-    int hash_idx = (client_port + i) % TCB_TABLE_SIZE; // hash function
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] == NULL) {
       port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
+      p2s->port = port;
+      p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
       return 0;
     }
@@ -155,8 +158,9 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
-  tcb_table[sockfd].svr_portNum = server_port;
+  tcb_table[sockfd]->svr_portNum = server_port;
   send_control_msg(sockfd, SYN);
+  printf("control msg SYN sent\n");
   return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYNSEG_TIMEOUT_NS);
 }
 
@@ -178,7 +182,11 @@ void send_control_msg(int sockfd, int type) {
   segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
   segPtr->header.type = type;
 
-  sendseg(overlay_conn, segPtr);
+  printf("%s: about to sendseg \n", __func__);
+  if(sendseg(overlay_conn, segPtr) < 0)
+    printf("%s: sendseg fail \n", __func__);
+  else
+    printf("%s: sendseg done \n", __func__);
 }
 
 // Send data to a srt server
@@ -209,6 +217,7 @@ int srt_client_disconnect(int sockfd) {
     printf("%s: state tranfer err!\n", __func__);
 
   send_control_msg(sockfd, FIN);
+  printf("FIN sent\n");
   return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FINSEG_TIMEOUT_NS);
 }
 
@@ -285,14 +294,22 @@ int srt_client_close(int sockfd) {
   if(tcb_table[sockfd]->state != CLOSED)
     return -1;
 
+  printf("about to free\n");
+
+   // delete entry in hash table
+  int port = tcb_table[sockfd]->client_portNum;
+  free(p2s_hash_t[p2s_hash_get(port)]);
+  p2s_hash_t[port] = NULL;
+
+  printf("hash_table freed\n");
+
   // delete entry in tcb table
   free(tcb_table[sockfd]);
   tcb_table[sockfd] = NULL;
 
-  // delete entry in hash table
-  int port = tcb_table[sockfd]->client_portNum;
-  free(tcb_table[port]);
-  p2s_hash_t[port] = NULL;
+  printf("tcb_table freed\n");
+
+
 
   return 1;
 }
@@ -312,10 +329,12 @@ int seghandler() {
     if(recvseg(overlay_conn, segPtr) == 1){
       int sockfd = p2s_hash_get(segPtr->header.dest_port);
       if(segPtr->header.type == SYNACK){
+        printf("SYNACK get\n");
         if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }
       else if(segPtr->header.type == FINACK){
+        printf("FINACK get\n");
         if (state_transfer(sockfd, CLOSED) == -1)
           printf("%s: state tranfer err!\n", __func__);
       }

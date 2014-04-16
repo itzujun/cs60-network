@@ -16,7 +16,7 @@ int overlay_start() {
 	struct hostent *hostInfo;
 	
 	char hostname_buf[50];
-	printf("Enter server name to connect:");
+	// printf("Enter server name to connect:");
 	// scanf("%s",hostname_buf);
 	sprintf(hostname_buf, "%s", "localhost");;	// @TODO: this is just for test
 
@@ -25,17 +25,20 @@ int overlay_start() {
 		printf("host name error!\n");
 		return -1;
 	}
-		
+
 	servaddr.sin_family =hostInfo->h_addrtype;	
 	memcpy((char *) &servaddr.sin_addr.s_addr, hostInfo->h_addr_list[0], hostInfo->h_length);
 	servaddr.sin_port = htons(PORT);
 
 	out_conn = socket(AF_INET,SOCK_STREAM,0);  
 	if(out_conn<0) {
+		printf("socket fail\n");
 		return -1;
 	}
-	if(connect(out_conn, (struct sockaddr*)&servaddr, sizeof(servaddr))<0)
+	if(connect(out_conn, (struct sockaddr*)&servaddr, sizeof(servaddr))<0){
+		printf("connect fail\n");
 		return -1; 
+	}
 	return out_conn;
 }
 
@@ -87,19 +90,23 @@ int main() {
 		printf("fail to disconnect from srt server\n");
 		exit(1);
 	}
+	printf("disconnect 1 successfully\n");
 	if(srt_client_close(sockfd)<0) {
 		printf("failt to close srt client\n");
 		exit(1);
 	}
+	printf("close 1 successfully\n");
 	
 	if(srt_client_disconnect(sockfd2)<0) {
 		printf("fail to disconnect from srt server\n");
 		exit(1);
 	}
+	printf("disconnect 2 successfully\n");
 	if(srt_client_close(sockfd2)<0) {
 		printf("failt to close srt client\n");
 		exit(1);
 	}
+	printf("close 2 successfully\n");
 	//close overlay tcp connection
 	overlay_stop(overlay_conn);
 }
