@@ -214,27 +214,32 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     // create a new seg header
     bufNode->seg.header.src_port = tcb_table[sockfd]->client_portNum;
     bufNode->seg.header.dest_port = tcb_table[sockfd]->svr_portNum;
-    bufNode->seg.header.seq_num = tcb->next_seqNum++;
+    bufNode->seg.header.seq_num = tcb->next_seqNum;
     bufNode->seg.header.type = DATA;
+    bufNode->seg.header.length = 0;
     bufNode->sentTime = 0;  // unsent bufeNode, default to 0
     // write the data into seg data area
     int seg_idx = 0;
     if (seg_start == 0) {
       // add header
       strcpy(bufNode->seg.data, "!&");
+      bufNode->seg.header.length += 2;
       seg_idx += 2;
       seg_start = 1;
     } 
     if (data_idx < length && seg_idx < MAX_SEG_LEN) {
       int len = MIN(length - data_idx - 1, MAX_SEG_LEN - seg_idx - 1);
       strncat(bufNode->seg.data, data + data_idx, len);
+      bufNode->seg.header.length += len;
       data_idx += len;
       seg_idx += len;
     }
     if(data_idx == length && seg_idx < MAX_SEG_LEN - 2) {
       strcat(bufNode->seg.data, "!#");
+      bufNode->seg.header.length += 2;
       seg_end = 1;
     }
+    tcb->next_seqNum += bufNode->seg.header.length;
     sendBuf_append(tcb_table[sockfd], bufNode);
 
     char testOutPut[MAX_SEG_LEN + 1];
