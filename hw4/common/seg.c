@@ -91,7 +91,7 @@ int snp_recvseg(int connection, seg_t* segPtr)
     int state = 0; 
     while(recv(connection,&c,1,0)>0) {
         if (state == 0) {
-                if(c=='!')
+            if(c=='!')
                 state = 1;
         }
         else if(state == 1) {
@@ -118,9 +118,9 @@ int snp_recvseg(int connection, seg_t* segPtr)
                 state = 0;
                 idx = 0;
                 if(seglost()>0) {
-                                    printf("seg lost!!!\n");
-                                    continue;
-                            }
+                    printf("seg lost!!!\n");
+                    continue;
+                }
                 memcpy(segPtr,buf,sizeof(seg_t));
                 return 1;
             }
@@ -144,22 +144,22 @@ int seglost(seg_t* segPtr) {
 		//50% probability of losing a segment
 		if(rand()%2==0) {
 			printf("seg lost!!!\n");
-      return 1;
-		}
+          return 1;
+      }
 		//50% chance of invalid checksum
-		else {
+      else {
 			//get data length
-			int len = sizeof(srt_hdr_t)+segPtr->header.length;
+         int len = sizeof(srt_hdr_t)+segPtr->header.length;
 			//get a random bit that will be flipped
-			int errorbit = rand()%(len*8);
+         int errorbit = rand()%(len*8);
 			//flip the bit
-			char* temp = (char*)segPtr;
-			temp = temp + errorbit/8;
-			*temp = *temp^(1<<(errorbit%8));
-			return 0;
-		}
-	}
-	return 0;
+         char* temp = (char*)segPtr;
+         temp = temp + errorbit/8;
+         *temp = *temp^(1<<(errorbit%8));
+         return 0;
+     }
+ }
+ return 0;
 
 }
 
@@ -173,7 +173,30 @@ int seglost(seg_t* segPtr) {
 //use 1s complement for checksum calculation
 unsigned short checksum(seg_t* segment)
 {
-  return 0;
+    // set checksum as long type in order to caputre the carries
+    unsigned long chksum = 0;
+    segment->header.checksum = 0;
+    int len = sizeof(segment->header);
+    if(segment->header.type == DATA) {
+        len += segment->header.length;
+    }
+
+    seg_t* segPtr = segment;
+    // compute checksum
+    while (len > 1) {
+        chksum += *segPtr++;
+        len -= 2;
+    }
+    if(len) {
+        /// if there is one more left, force to grab a 16 bit data
+        chksum += *(unsigned short*)segPtr;
+    }
+
+    // handle the carries
+    while (cksum >> 16)
+        cksum = (cksum >> 16) + (cksum & 0xffff); 
+
+    return (unsigned short)(~cksum);
 }
 
 //check the checksum in the segment,
@@ -181,5 +204,9 @@ unsigned short checksum(seg_t* segment)
 //return -1 if the checksum is invalid
 int checkchecksum(seg_t* segment)
 {
-  return 0;
+    unsigned short chksum = checksum(segment);
+    if(~chksum == 0)
+        return 1;
+    else
+        return -1
 }

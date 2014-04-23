@@ -127,7 +127,18 @@ int srt_server_accept(int sockfd) {
 // this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
 //
 int srt_server_recv(int sockfd, void* buf, unsigned int length) {
-  return 1;
+  while(1) {
+    pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
+    if(tcb_table[sockfd]->usedBufLen == length) {
+      strncpy(buf, tcb_table[sockfd]->recvBuf, length);
+      bzero(tcb_table[sockfd]->recvBuf, sizeof(char) * tcb_table[sockfd]->usedBufLen);
+      tcb_table[sockfd]->usedBufLen = 0;
+      return 0;
+    }
+    pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+    sleep(RECVBUF_POLLING_INTERVAL);
+  }
+  return -1;
 }
 
 // Close the srt server
@@ -150,6 +161,12 @@ int srt_server_close(int sockfd) {
   free(p2s_hash_t[idx]);
   p2s_hash_t[idx] = NULL;
   printf("hash table entry %d -> %d deleted\n", port, sockfd);
+
+  // free the mutex and recvBuf
+  free(tcb_table[sockfd]->recvBuf);
+  tcb_table[sockfd]->recvBuf = NULL;
+  free(tcb_table[sockfd]->bufMutex);
+  tcb_table[sockfd]->bufMutex = NULL;
 
   // delete entry in tcb table
   free(tcb_table[sockfd]);
@@ -194,6 +211,33 @@ void *seghandler(void* arg) {
           }
         }
       }
+      else if(segPtr->header.type == DATA && 
+        tcb_table[sockfd]->usedBufLen <= RECEIVE_BUF_SIZE){
+        pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
+        int ackNum = tcb_table[sockfd]->expect_seqNum;
+        if(segPtr->header.seq_num == tcb_table[sockfd]->expect_seqNum) {
+          strncat(tcb_table[sockfd]->recvBuf, segPtr->data, segPtr->header.length);
+          tcb_table[sockfd]->usedBufLen++;
+          ackNum = segPtr->header.seq_num;
+          tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
+        }
+        thread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+        send_askMsg(sockfd, ackNum);
+        send_control_msg(sockfd, DATAACK);
+        // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+        if (state_transfer(sockfd, CLOSEWAIT) == -1){
+          printf("FIN duplicate!\n");
+        }
+        else{
+          // creating new thread
+          int pthread_err = pthread_create(threads + (thread_count++), NULL,
+            (void *) close_wait, (void *) sockfd);
+          if (pthread_err != 0) {
+            printf("Create thread Failed!\n");
+            return;
+          }
+        }
+      }
       else{
         printf("%s: unkown msg type!\n", __func__);
         return;
@@ -204,11 +248,32 @@ void *seghandler(void* arg) {
   }
 }
 
+void recvBuf_push(int sockfd, seg_t* segPtr) {
+  return;
+}
+
+void send_askMsg(int sockfd, int ackNum) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  segPtr->header.src_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.type = DATAACK;
+  segPtr->header.ack_num = ackNum;
+
+  snp_sendseg(overlay_conn, segPtr);
+}
+
 void *close_wait(int sockfd) { 
   sleep(CLOSEWAIT_TIMEOUT);
   // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if (state_transfer(sockfd, CLOSED) == -1)
     printf("%s: state tranfer err!\n", __func__);
+  else {
+    bzero(tcb_table[sockfd]->recvBuf, sizeof(char) * tcb_table[sockfd]->usedBufLen);
+    tcb_table[sockfd]->usedBufLen = 0;
+  }    
   // printf("%s: after close_wait current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
 }
 
@@ -220,9 +285,9 @@ int init_tcb(int sockfd, int port) {
   tcb_t->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
   tcb_t->state = CLOSED; 
   tcb_t->expect_seqNum = 0; 
-  tcb_t->recvBuf = NULL; 
+  tcb_t->recvBuf = (char*) malloc(sizeof(char) * RECEIVE_BUF_SIZE); 
   tcb_t->usedBufLen = 0; 
-  tcb_t->bufMutex = NULL; 
+  tcb_t->bufMutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t)); 
 
   int i;
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
