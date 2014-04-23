@@ -10,6 +10,7 @@
 #define MAX_THREAD_NUM 11
 
 typedef struct client_tcb client_tcb_t;
+typedef struct segBuf segBuf_t;
 typedef struct port_sockfd_pair{
   int port;
   int sock;
@@ -119,12 +120,9 @@ int init_tcb(int sockfd, int port) {
   tcb_t->client_portNum = port;
   tcb_t->state = CLOSED; 
   tcb_t->next_seqNum = 0; 
-  tcb_t->bufMutex = NULL; 
-  tcb_t->sendBufHead = NULL; 
-  tcb_t->sendBufunSent = NULL; 
-  tcb_t->sendBufTail = NULL; 
   tcb_t->unAck_segNum = 0; 
 
+  // init hash table
   int i;
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
@@ -134,9 +132,14 @@ int init_tcb(int sockfd, int port) {
       p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
       printf("hash table entry %d -> %d added\n", port, sockfd);
-      return 0;
     }
   }
+
+  // init buffer
+  tcb_t->bufMutex = NULL; 
+  tcb_t->sendBufHead = NULL; 
+  tcb_t->sendBufunSent = NULL; 
+  tcb_t->sendBufTail = NULL; 
   return -1;
 }
 
@@ -199,7 +202,63 @@ void send_control_msg(int sockfd, int type) {
 //
 
 int srt_client_send(int sockfd, void* data, unsigned int length) {
- return 1;
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  int seg_start = 0, seg_end = 0, , data_idx = 0; 
+  do{
+    // create buffer node
+    segBuf_t* bufNode = (segBuf_t*) malloc(sizeof(segBuf_t));
+    // create a new seg header
+    bufNode->seg.header.src_port = tcb_table[sockfd]->client_portNum;
+    bufNode->seg.header.dest_port = tcb_table[sockfd]->svr_portNum;
+    bufNode->seg.header.type = DATA;
+    // write the data into seg data area
+    int seg_idx = 0;
+    if (seg_start == 0) {
+      // add header
+      strcpy(bufNode->seg.data, "!&");
+      seg_idx += 2;
+      seg_start = 1;
+    } 
+    if (data_idx < length && seg_idx < MAX_SEG_LEN) {
+      int len = MIN(length - data_idx - 1, MAX_SEG_LEN - seg_idx - 1);
+      strncat(bufNode->seg.data, data + data_idx, len);
+      data_idx += len;
+      seg_idx += len;
+    }
+    if(data_idx == length && seg_idx < MAX_SEG_LEN - 2) {
+      strcat(bufNode->seg.data, "!#");
+      seg_end = 1;
+    }
+    clientBuf_append(tcb_table[sockfd], bufNode);
+
+    char testOutPut[MAX_SEG_LEN + 1];
+    strcat(testOutPut, "\0");
+    puts(testOutPut);
+
+  } while(seg_end != 0);
+
+  clientBuf_initSend(tcb_table[sockfd])
+  return 1;
+}
+
+void clientBuf_initSend(client_tcb_t *tcb) {
+  if(tcb == NULL)
+    printf("err in %s: tcb entry is NUll!\n", __func__);
+  if(tcb->sendBufunSent == NULL)
+    printf("err in %s: sendBufunSent is NULL!\n", __func__);
+  if(tcb->sendBufunSent->next == NULL)
+    printf("err in %s: nothing to send at all!\n", __func__);
+
+  while(unAck_segNum <= GBN_WINDOW 
+    && tcb->sendBufunSent->next != NULL) {
+    tcb->sendBufunSent = tcb->sendBufunSent->next;
+    if(snp_sendseg(overlay_conn, tcb->sendBufunSent.seg) < 0)
+      printf("err in %s: snp_sendseg fail \n", __func__);
+    else 
+      tcb->sendBufunSent.sentTime = (unsigned int)time(NULL);
+  }
 }
 
 // Disconnect from a srt server
