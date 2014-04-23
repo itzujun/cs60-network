@@ -71,9 +71,8 @@ void srt_client_init(int conn) {
     *(p2s_hash_t + i) = NULL;
   }
 
-  // handling new coming request
   bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
-  // creating new thread
+  // handling new coming request, creating new thread
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
     (void *) seghandler, (void *) NULL);
   if (pthread_err != 0) {
@@ -105,6 +104,15 @@ int srt_client_sock(unsigned int client_port) {
       tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
       if(init_tcb(idx, client_port) == -1) 
         printf("%s: hash table insert failed!\n", __func__);
+
+      // create timer for this tcb
+      int pthread_err = pthread_create(threads + (thread_count++), NULL,
+        (void *) tcb_timer, (void *) client_port);
+      if (pthread_err != 0) {
+        printf("%s: Create thread Failed!\n", __func__);
+        return;
+      }
+
       printf("sock on port %d created\n", client_port);
       return idx;
     }
@@ -206,13 +214,16 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     printf("%s: tcb not found!\n", __func__);
 
   int seg_start = 0, seg_end = 0, , data_idx = 0; 
-  do{
+   // mutual exclusion free for buffer operation
+  pthread_mutex_lock(tcb->bufMutex);
+  do {
     // create buffer node
     segBuf_t* bufNode = (segBuf_t*) malloc(sizeof(segBuf_t));
     // create a new seg header
     bufNode->seg.header.src_port = tcb_table[sockfd]->client_portNum;
     bufNode->seg.header.dest_port = tcb_table[sockfd]->svr_portNum;
     bufNode->seg.header.type = DATA;
+    bufNode->sentTime = 0;  // unsent bufeNode, default to 0
     // write the data into seg data area
     int seg_idx = 0;
     if (seg_start == 0) {
@@ -240,25 +251,35 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
   } while(seg_end != 0);
 
   clientBuf_initSend(tcb_table[sockfd])
+  pthread_mutex_unlock(tcb->bufMutex);
   return 1;
 }
 
 void clientBuf_initSend(client_tcb_t *tcb) {
+  // check exception
   if(tcb == NULL)
     printf("err in %s: tcb entry is NUll!\n", __func__);
-  if(tcb->sendBufunSent == NULL)
-    printf("err in %s: sendBufunSent is NULL!\n", __func__);
   if(tcb->sendBufunSent->next == NULL)
     printf("err in %s: nothing to send at all!\n", __func__);
 
-  while(unAck_segNum <= GBN_WINDOW 
-    && tcb->sendBufunSent->next != NULL) {
-    tcb->sendBufunSent = tcb->sendBufunSent->next;
-    if(snp_sendseg(overlay_conn, tcb->sendBufunSent.seg) < 0)
+  do {
+    if(tcb->unAck_segNum == 0) {
+      tcb->sendBufunSent = tcb->sendBufHead;
+      if(tcb->sendBufHead == NULL)
+        printf("err in %s: buffer is empty, maybe the bufhead is released incorrectly!\n", __func__);
+    }
+    else {
+      // get the next unsent buf
+      tcb->sendBufunSent = tcb->sendBufunSent->next;
+    }
+    // send seg
+    if(snp_sendseg(overlay_conn, tcb->sendBufunSent->seg) < 0)
       printf("err in %s: snp_sendseg fail \n", __func__);
     else 
-      tcb->sendBufunSent.sentTime = (unsigned int)time(NULL);
-  }
+      tcb->sendBufunSent->sentTime = (unsigned int)time(NULL);
+    unAck_segNum++;
+  } while(unAck_segNum <= GBN_WINDOW && tcb->sendBufunSent->next != NULL);
+
 }
 
 // Disconnect from a srt server
@@ -425,3 +446,30 @@ int p2s_hash_get_idx(int port) {
   return -1;  
 }
 
+void *tcb_timer(int client_port) { 
+  client_tcb_t *tcb = tcb_table[p2s_hash_get_sock(client_port)];
+  while(1) {
+    sleep(SENDBUF_POLLING_INTERVAL);
+    // mutual exclusion free for buffer operation
+    pthread_mutex_lock(tcb->bufMutex);
+    int bgn_idx = 0; 
+    segBuf_t* sendPtr = tcb->sendBufHead;
+    // try to sent bufNode within GBN_WINDOW
+    while (bgn_idx < GBN_WINDOW && sendPtr != NULL) {
+      time_t t0 = sendPtr->sentTime;
+      if (t0 == 0 
+        || difftime(time(NULL), t0) * 1000 >= DATA_TIMEOUT) {
+        // if it is not sent yet
+        // or if this bufNode sent before and reach timeout, then resend
+        if(snp_sendseg(overlay_conn, sendPtr->seg) < 0)
+          printf("err in %s: snp_sendseg fail \n", __func__);
+        else 
+          sendPtr->sentTime = (unsigned int)time(NULL);
+      }
+      tcb->sendBufunSent = sendPtr;
+      sendPtr = sendPtr->next;
+      bgn_idx++;
+    }
+    thread_mutex_unlock(tcb->bufMutex);
+  }
+}
