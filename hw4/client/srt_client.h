@@ -151,7 +151,7 @@ void *seghandler(void* arg);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-void* sendBuf_timer(void* clienttcb);
+void* sendBuf_timer(int client_port);
 
 // This thread continuously polls send buffer to trigger timeout events
 // It should always be running when the send buffer is not empty
@@ -172,8 +172,7 @@ int p2s_hash_get_idx(int port);
 int state_transfer(int sockfd, int new_state);
 
 void sendBuf_initSend(client_tcb_t *tcb);
-void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode)
-void *sendBuf_timer(int client_port);
-void sendBuf_handleACK(int ack_num);
+void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode);
+void sendBuf_handleACK(int sockfd, int ack_num);
 
 #endif

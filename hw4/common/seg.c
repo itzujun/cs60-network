@@ -117,7 +117,7 @@ int snp_recvseg(int connection, seg_t* segPtr)
                 idx++;
                 state = 0;
                 idx = 0;
-                if(seglost()>0) {
+                if(seglost(segPtr)>0) {
                     printf("seg lost!!!\n");
                     continue;
                 }
@@ -173,6 +173,7 @@ int seglost(seg_t* segPtr) {
 //use 1s complement for checksum calculation
 unsigned short checksum(seg_t* segment)
 {
+    unsigned long* dataBuf = (unsigned long*)segment;
     // set checksum as long type in order to caputre the carries
     unsigned long chksum = 0;
     segment->header.checksum = 0;
@@ -181,22 +182,22 @@ unsigned short checksum(seg_t* segment)
         len += segment->header.length;
     }
 
-    seg_t* segPtr = segment;
     // compute checksum
     while (len > 1) {
-        chksum += *segPtr++;
+        chksum += *dataBuf;
+        dataBuf++;
         len -= 2;
     }
     if(len) {
         /// if there is one more left, force to grab a 16 bit data
-        chksum += *(unsigned short*)segPtr;
+        chksum += *(unsigned short*)dataBuf;
     }
 
     // handle the carries
-    while (cksum >> 16)
-        cksum = (cksum >> 16) + (cksum & 0xffff); 
+    while (chksum >> 16)
+        chksum = (chksum >> 16) + (chksum & 0xffff); 
 
-    return (unsigned short)(~cksum);
+    return (unsigned short)(~chksum);
 }
 
 //check the checksum in the segment,
@@ -208,5 +209,5 @@ int checkchecksum(seg_t* segment)
     if(~chksum == 0)
         return 1;
     else
-        return -1
+        return -1;
 }

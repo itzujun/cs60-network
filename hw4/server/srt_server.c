@@ -221,7 +221,7 @@ void *seghandler(void* arg) {
           ackNum = segPtr->header.seq_num;
           tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
         }
-        thread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+        pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
         send_askMsg(sockfd, ackNum);
         send_control_msg(sockfd, DATAACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
