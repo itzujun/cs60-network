@@ -9,7 +9,7 @@
 #define VNAME(x) #x
 #define MAX_THREAD_NUM 11
 
-typedef struct client_tcb client_tcb;
+typedef struct client_tcb client_tcb_t;
 typedef struct segBuf segBuf_t;
 typedef struct port_sockfd_pair{
   int port;
@@ -17,10 +17,10 @@ typedef struct port_sockfd_pair{
 }port_sock;
 
 int overlay_conn;
-const int tcbABLE_SIZE = MAX_TRANSPORT_CONNECTIONS;
+const int TCB_TABLE_SIZE = MAX_TRANSPORT_CONNECTIONS;
 const int CHK_STAT_INTERVAL_NS = 50;
 pthread_t threads[MAX_THREAD_NUM];
-client_tcb **tcbable;
+client_tcb_t **tcb_table;
 port_sock **p2s_hash_t;
 int thread_count = 0;
 
@@ -62,12 +62,12 @@ void srt_client_init(int conn) {
 
   // init tcb table and port/sock mapping
   int i;
-  tcbable = (client_tcb**) malloc(tcbABLE_SIZE * sizeof(client_tcb*));
-  for (i = 0; i < tcbABLE_SIZE; i++){
-    *(tcbable + i) = NULL;
+  tcb_table = (client_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(client_tcb_t*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(tcb_table + i) = NULL;
   }
-  p2s_hash_t = (port_sock**) malloc(tcbABLE_SIZE * sizeof(port_sock*));
-  for (i = 0; i < tcbABLE_SIZE; i++){
+  p2s_hash_t = (port_sock**) malloc(TCB_TABLE_SIZE * sizeof(port_sock*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
     *(p2s_hash_t + i) = NULL;
   }
 
@@ -98,10 +98,10 @@ void srt_client_init(int conn) {
 int srt_client_sock(unsigned int client_port) {
   int idx;
   // find the first NULL, and create a tcb entry
-  for (idx = 0; idx < tcbABLE_SIZE; idx++){
-    if (tcbable[idx] == NULL) {
+  for (idx = 0; idx < TCB_TABLE_SIZE; idx++){
+    if (tcb_table[idx] == NULL) {
       // creat a tcb entry
-      tcbable[idx] = (client_tcb*) malloc(sizeof(client_tcb));
+      tcb_table[idx] = (client_tcb_t*) malloc(sizeof(client_tcb_t));
       if(init_tcb(idx, client_port) == -1) 
         printf("%s: hash table insert failed!\n", __func__);
       printf("sock on port %d created\n", client_port);
@@ -112,7 +112,7 @@ int srt_client_sock(unsigned int client_port) {
 }
 
 int init_tcb(int sockfd, int port) {
-  client_tcb* tcb = tcbable[sockfd];
+  client_tcb_t* tcb = tcb_table[sockfd];
   tcb->svr_nodeID = 0;  // currently unused
   tcb->svr_portNum = 0; // @TODO: where to get it??, will be initialized latter  
   tcb->client_nodeID = 0;  // currently unused
@@ -121,24 +121,25 @@ int init_tcb(int sockfd, int port) {
   tcb->next_seqNum = 0; 
   tcb->unAck_segNum = 0; 
 
+    // init buffer
+  tcb->bufMutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t)); 
+  tcb->sendBufHead = NULL; 
+  tcb->sendBufunSent = NULL; 
+  tcb->sendBufTail = NULL; 
+
   // init hash table
   int i;
-  for(i = 0; i < tcbABLE_SIZE; i++) {
-    int hash_idx = (port + i) % tcbABLE_SIZE; // hash function
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] == NULL) {
       port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
       p2s->port = port;
       p2s->sock = sockfd;
       p2s_hash_t[hash_idx] = p2s;
       printf("hash table entry %d -> %d added\n", port, sockfd);
+      return 0;
     }
   }
-
-  // init buffer
-  tcb->bufMutex = NULL; 
-  tcb->sendBufHead = NULL; 
-  tcb->sendBufunSent = NULL; 
-  tcb->sendBufTail = NULL; 
   return -1;
 }
 
@@ -160,11 +161,11 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
   // set the state of corresponding tcb entry
   if (state_transfer(sockfd, SYNSENT) == -1)
     printf("%s: state tranfer err!\n", __func__);
-  if(tcbable[sockfd] == NULL)
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
-  tcbable[sockfd]->svr_portNum = server_port;
-  return keep_try(sockfd, SYNSENT, SYN_MAX_RETRY, SYN_TIMEOUT);
+  tcb_table[sockfd]->svr_portNum = server_port;
+  return keepTry(sockfd, SYNSENT, SYN_MAX_RETRY, SYN_TIMEOUT);
 }
 
 int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
@@ -177,12 +178,12 @@ int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
 }
 
 void send_control_msg(int sockfd, int type) {
-  if(tcbable[sockfd] == NULL)
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
-  segPtr->header.src_port = tcbable[sockfd]->client_portNum;
-  segPtr->header.dest_port = tcbable[sockfd]->svr_portNum;
+  segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
   segPtr->header.type = type;
 
   // printf("%s: about to snp_sendseg \n", __func__);
@@ -201,7 +202,7 @@ void send_control_msg(int sockfd, int type) {
 //
 
 int srt_client_send(int sockfd, void* data, unsigned int length) {
-  if(tcbable[sockfd] == NULL)
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
   int seg_start = 0, seg_end = 0, , data_idx = 0; 
@@ -211,8 +212,8 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     // create buffer node
     segBuf_t* bufNode = (segBuf_t*) malloc(sizeof(segBuf_t));
     // create a new seg header
-    bufNode->seg.header.src_port = tcbable[sockfd]->client_portNum;
-    bufNode->seg.header.dest_port = tcbable[sockfd]->svr_portNum;
+    bufNode->seg.header.src_port = tcb_table[sockfd]->client_portNum;
+    bufNode->seg.header.dest_port = tcb_table[sockfd]->svr_portNum;
     bufNode->seg.header.seq_num = tcb->next_seqNum++;
     bufNode->seg.header.type = DATA;
     bufNode->sentTime = 0;  // unsent bufeNode, default to 0
@@ -234,7 +235,7 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
       strcat(bufNode->seg.data, "!#");
       seg_end = 1;
     }
-    sendBuf_append(tcbable[sockfd], bufNode);
+    sendBuf_append(tcb_table[sockfd], bufNode);
 
     char testOutPut[MAX_SEG_LEN + 1];
     strcat(testOutPut, "\0");
@@ -242,36 +243,28 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 
   } while(seg_end != 0);
 
-  sendBuf_initSend(tcbable[sockfd])
+  sendBuf_initSend(tcb_table[sockfd])
   pthread_mutex_unlock(tcb->bufMutex);
   return 1;
 }
 
-void sendBuf_initSend(client_tcb *tcb) {
+void sendBuf_initSend(client_tcb_t *tcb) {
   // check exception
   if(tcb == NULL)
     printf("err in %s: tcb entry is NUll!\n", __func__);
-  if(tcb->sendBufunSent->next == NULL)
-    printf("err in %s: nothing to send at all!\n", __func__);
+  if(tcb->sendBufunSent == NULL)
+    printf("err in %s: sendBufunSent is NULL!\n", __func__);
 
   // send initial segments as much as possible
-  do {
-    if(tcb->unAck_segNum == 0) {
-      tcb->sendBufunSent = tcb->sendBufHead;
-      if(tcb->sendBufHead == NULL)
-        printf("err in %s: buffer is empty, maybe the bufhead is released incorrectly!\n", __func__);
-    }
-    else {
-      // get the next unsent buf
-      tcb->sendBufunSent = tcb->sendBufunSent->next;
-    }
+  while (unAck_segNum <= GBN_WINDOW && tcb->sendBufunSent != NULL) {
     // send seg
     if(snp_sendseg(overlay_conn, tcb->sendBufunSent->seg) < 0)
       printf("err in %s: snp_sendseg fail \n", __func__);
     else 
       tcb->sendBufunSent->sentTime = (unsigned int)time(NULL);
-    unAck_segNum++;
-  } while(unAck_segNum <= GBN_WINDOW && tcb->sendBufunSent->next != NULL);
+    unAck_segNum++;    
+    tcb->sendBufunSent = tcb->sendBufunSent->next;
+  }
 
   // create sendBuf_timer for this tcb buffer
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
@@ -299,37 +292,39 @@ int srt_client_disconnect(int sockfd) {
 
   // send_control_msg(sockfd, FIN);
   // printf("FIN sent to sockfd %d\n", sockfd);
-  return keep_try(sockfd, FINWAIT, FIN_MAX_RETRY, FIN_TIMEOUT);
+  if( keepTry(sockfd, FINWAIT, FIN_MAX_RETRY, FIN_TIMEOUT) == -1)
+    printf("err in %s: cannot disconnect\n", __func__);
+
 }
 
 int state_transfer(int sockfd, int new_state) {
-  if(tcbable[sockfd] == NULL)
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
   if(new_state == CLOSED) {
-    if (tcbable[sockfd]->state == SYNSENT
-      || tcbable[sockfd]->state == FINWAIT) {
-      tcbable[sockfd]->state = CLOSED;
+    if (tcb_table[sockfd]->state == SYNSENT
+      || tcb_table[sockfd]->state == FINWAIT) {
+      tcb_table[sockfd]->state = CLOSED;
       printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
       return 0;
     }
   } else if (new_state == CONNECTED) {
-    if (tcbable[sockfd]->state == SYNSENT) {
-      tcbable[sockfd]->state = CONNECTED;
+    if (tcb_table[sockfd]->state == SYNSENT) {
+      tcb_table[sockfd]->state = CONNECTED;
       printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
       return 0;
     }
   } else if (new_state == SYNSENT) {
-    if (tcbable[sockfd]->state == CLOSED
-      || tcbable[sockfd]->state == SYNSENT) {
-      tcbable[sockfd]->state = SYNSENT;
+    if (tcb_table[sockfd]->state == CLOSED
+      || tcb_table[sockfd]->state == SYNSENT) {
+      tcb_table[sockfd]->state = SYNSENT;
       printf("State of sockfd %d transfer to %s\n", sockfd, "SYNSENT");
       return 0;
     }
   } else if (new_state == FINWAIT) {
-    if (tcbable[sockfd]->state == CONNECTED
-      || tcbable[sockfd]->state == FINWAIT) {
-      tcbable[sockfd]->state = FINWAIT;
+    if (tcb_table[sockfd]->state == CONNECTED
+      || tcb_table[sockfd]->state == FINWAIT) {
+      tcb_table[sockfd]->state = FINWAIT;
       printf("State of sockfd %d transfer to %s\n", sockfd, "FINWAIT");
       return 0;
     }
@@ -337,8 +332,8 @@ int state_transfer(int sockfd, int new_state) {
   return -1;
 }
 
-int keep_try(int sockfd, int action, int maxtry, long timeout) {
-  if(tcbable[sockfd] == NULL)
+int keepTry(int sockfd, int action, int maxtry, long timeout) {
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 
   int try_cnt = 1;
@@ -350,10 +345,10 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
     clock_gettime(CLOCK_MONOTONIC, &tend);
     while(timeout == -1 || !is_timeout(tstart, tend, timeout)) {
       if(action == SYNSENT 
-        && tcbable[sockfd]->state == CONNECTED)
+        && tcb_table[sockfd]->state == CONNECTED)
         return 1;
       else if(action == FINWAIT
-        && tcbable[sockfd]->state == CLOSED)
+        && tcb_table[sockfd]->state == CLOSED)
         return 1;
       clock_gettime(CLOCK_MONOTONIC, &tend);
     }
@@ -373,21 +368,21 @@ int keep_try(int sockfd, int action, int maxtry, long timeout) {
 //
 
 int srt_client_close(int sockfd) {
-  if(tcbable[sockfd] == NULL)
+  if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
-  if(tcbable[sockfd]->state != CLOSED)
+  if(tcb_table[sockfd]->state != CLOSED)
     return -1;
 
   // delete entry in hash table
-  int port = tcbable[sockfd]->client_portNum;
+  int port = tcb_table[sockfd]->client_portNum;
   int idx = p2s_hash_get_idx(port);
   free(p2s_hash_t[idx]);
   p2s_hash_t[idx] = NULL;
   printf("hash table entry %d -> %d deleted\n", port, sockfd);
 
   // delete entry in tcb table
-  free(tcbable[sockfd]);
-  tcbable[sockfd] = NULL;
+  free(tcb_table[sockfd]);
+  tcb_table[sockfd] = NULL;
 
   return 1;
 }
@@ -432,7 +427,7 @@ void *seghandler(void *arg) {
 void sendBuf_handleACK(int ack_num) {
   pthread_mutex_lock(tcb->bufMutex);
   if(tcb->sendBufTail->seg.header.seq_num < ack_num)
-    printf("err %s: WTF!!!\n", __func__);
+    printf("%s: Going to release all buf.\n", __func__);
   while(tcb->sendBufHead != NULL 
       && tcb->sendBufHead->seg.header.seq_num <= ack_num) {
     segBuf_t* tmpPtr = tcb->sendBufHead;
@@ -459,6 +454,11 @@ void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode) {
     tcb->sendBufTail->next = bufNode;
     tcb->sendBufTail = sendBufTail->next;
   }
+
+  // init sentBufUnsent, if needed
+  if(tcb->sendBufunSent == NULL) {
+    tcb->sendBufunSent = bufNode;
+  }
 }
 
 int p2s_hash_get_sock(int port) {
@@ -468,8 +468,8 @@ int p2s_hash_get_sock(int port) {
 int p2s_hash_get_idx(int port) {
   int i;
   // printf("%s: search for port %d\n", __func__, port);
-  for(i = 0; i < tcbABLE_SIZE; i++) {
-    int hash_idx = (port + i) % tcbABLE_SIZE; // hash function
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
     if(p2s_hash_t[hash_idx] != NULL )
       // printf("%d %d\n", p2s_hash_t[hash_idx]->sock, p2s_hash_t[hash_idx]->port);
     if(p2s_hash_t[hash_idx] != NULL 
@@ -482,7 +482,7 @@ int p2s_hash_get_idx(int port) {
 }
 
 void *sendBuf_timer(int client_port) { 
-  client_tcb *tcb = tcbable[p2s_hash_get_sock(client_port)];
+  client_tcb_t *tcb = tcb_table[p2s_hash_get_sock(client_port)];
   while(tcb->unAck_segNum != 0 || tcb->sendBufHead == NULL) {
     sleep(SENDBUF_POLLING_INTERVAL);
     // mutual exclusion free for buffer operation
@@ -501,7 +501,7 @@ void *sendBuf_timer(int client_port) {
         else 
           buffPtr->sentTime = (unsigned int)time(NULL);
       }
-      tcb->sendBufunSent = buffPtr;
+      tcb->sendBufunSent = buffPtr->next;
       buffPtr = buffPtr->next;
       bgn_idx++;
     }
