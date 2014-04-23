@@ -7,6 +7,4 @@
 
 void clientBuf_append(client_tcb_t *tcb, segBuf_t* bufNode);
 void serverBuf_append(svr_tcb_t *tcb, segBuf_t* bufNode);
-void clientBuf_initSend(client_tcb_t *tcb);
-void clientBuf_findAndRm(segBuf_t* sendBufTail, segBuf_t* sendBufHead, int ack_num);
 #endif

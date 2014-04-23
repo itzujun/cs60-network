@@ -7,6 +7,9 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 //overlay port opened by the server. the client will connect to this port. You should choose a random port to avoid conflicts with your classmates. Because you may log onto the same computer.
 #define OVERLAY_PORT 9009
 //this is the MAX connections can be supported by SRT. You TCB table should contain MAX_TRANSPORT_CONNECTIONS entries

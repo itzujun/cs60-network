@@ -32,7 +32,3 @@ void serverBuf_append(svr_tcb_t *tcb, segBuf_t* bufNode) {
 	}
 }
 
-void buffer_findAndRm(segBuf_t* sendBufTail, segBuf_t* sendBufHead, int ack_num) {
-
-}
-
