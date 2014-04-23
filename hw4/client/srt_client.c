@@ -294,7 +294,8 @@ int srt_client_disconnect(int sockfd) {
   // printf("FIN sent to sockfd %d\n", sockfd);
   if( keepTry(sockfd, FINWAIT, FIN_MAX_RETRY, FIN_TIMEOUT) == -1)
     printf("err in %s: cannot disconnect\n", __func__);
-
+  // release the whole buf
+  sendBuf_handleACK(MAX_SEQ_NO);
 }
 
 int state_transfer(int sockfd, int new_state) {
@@ -380,6 +381,10 @@ int srt_client_close(int sockfd) {
   p2s_hash_t[idx] = NULL;
   printf("hash table entry %d -> %d deleted\n", port, sockfd);
 
+  // free mutex
+  free(tcb[sockfd]->bufMutex);
+  tcb[sockfd]->bufMutex = NULL;
+
   // delete entry in tcb table
   free(tcb_table[sockfd]);
   tcb_table[sockfd] = NULL;
@@ -432,6 +437,8 @@ void sendBuf_handleACK(int ack_num) {
       && tcb->sendBufHead->seg.header.seq_num <= ack_num) {
     segBuf_t* tmpPtr = tcb->sendBufHead;
     tcb->sendBufHead = tcb->sendBufHead->next;
+    if(tmpPtr == tcb->sentBufUnsent && ack_num != MAX_SEQ_NO)
+      printf("err in %s: try to relase an unsent node\n", __func__);
     free(tmpPtr);
   }
   // if the buffer is empty

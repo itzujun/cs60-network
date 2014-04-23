@@ -43,4 +43,6 @@
 #define DATA_TIMEOUT 1000
 //GBN window size
 #define GBN_WINDOW 10
+
+#define MAX_SEQ_NO 2147483647
 #endif
