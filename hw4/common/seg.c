@@ -48,12 +48,18 @@ int snp_sendseg(int connection, seg_t* segPtr)
 	bufend[0] = '!';
 	bufend[1] = '#';
 
-	if (send(connection, bufstart, 2, 0) < 0) {
-		return -1;
-	}
+    // printf("<func: %s> send head\n", __func__);
+    if (send(connection, bufstart, 2, 0) < 0) {
+        return -1;
+    }
+    // printf("<func: %s> send body\n", __func__);
+    unsigned short chksum = checksum(segPtr);
+    segPtr->header.checksum = chksum;
 	if(send(connection,segPtr,sizeof(seg_t),0)<0) {
+        // printf("<func: %s> send body fail\n", __func__);
 		return -1;
 	}
+    // printf("<func: %s> send foot\n", __func__);
 	if(send(connection,bufend,2,0)<0) {
 		return -1;
 	}
@@ -117,8 +123,13 @@ int snp_recvseg(int connection, seg_t* segPtr)
                 idx++;
                 state = 0;
                 idx = 0;
+                // puts("hadnle pkt err");
                 if(seglost(segPtr)>0) {
                     printf("seg lost!!!\n");
+                    continue;
+                }
+                if(checkchecksum((seg_t*)buf) == -1){
+                    puts("checksum err");
                     continue;
                 }
                 memcpy(segPtr, (seg_t*)buf, sizeof(seg_t));
@@ -177,7 +188,6 @@ unsigned short checksum(seg_t* segment)
     unsigned long* dataBuf = (unsigned long*)segment;
     // set checksum as long type in order to caputre the carries
     unsigned long chksum = 0;
-    segment->header.checksum = 0;
     int len = sizeof(segment->header);
     if(segment->header.type == DATA) {
         len += segment->header.length;
@@ -198,6 +208,7 @@ unsigned short checksum(seg_t* segment)
     while (chksum >> 16)
         chksum = (chksum >> 16) + (chksum & 0xffff); 
 
+    // printf("%s: the checksum is %d!\n", __func__, (unsigned short)(~chksum));
     return (unsigned short)(~chksum);
 }
 
@@ -207,7 +218,9 @@ unsigned short checksum(seg_t* segment)
 int checkchecksum(seg_t* segment)
 {
     unsigned short chksum = checksum(segment);
-    if(~chksum == 0)
+    // printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
+    // printf("%s: the checkchecksum is %d!\n", __func__, chksum);
+    if(chksum == 0)
         return 1;
     else
         return -1;

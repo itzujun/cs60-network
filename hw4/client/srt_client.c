@@ -188,8 +188,10 @@ void send_control_msg(int sockfd, int type) {
     printf("%s: tcb not found!\n", __func__);
 
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  bzero(segPtr, sizeof(seg_t));
   segPtr->header.src_port = tcb_table[sockfd]->client_portNum;
   segPtr->header.dest_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.checksum = 0;
   segPtr->header.type = type;
 
   // printf("%s: about to snp_sendseg \n", __func__);
@@ -228,6 +230,7 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     bufNode->seg.header.seq_num = tcb_table[sockfd]->next_seqNum;
     bufNode->seg.header.type = DATA;
     bufNode->seg.header.length = 0;
+    bufNode->seg.header.checksum = 0;
     bufNode->sentTime = 0;  // unsent bufeNode, default to 0
     
     // write the data into seg data area
