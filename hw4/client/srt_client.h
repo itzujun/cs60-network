@@ -171,8 +171,8 @@ int p2s_hash_get_sock(int port);
 int p2s_hash_get_idx(int port);
 int state_transfer(int sockfd, int new_state);
 
-void sendBuf_initSend(client_tcb_t *tcb);
-void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode);
+void sendBuf_instantSend(client_tcb_t *tcb);
+void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode, int is_first);
 void sendBuf_handleACK(int sockfd, int ack_num);
 
 #endif

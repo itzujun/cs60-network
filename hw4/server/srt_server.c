@@ -222,7 +222,7 @@ void *seghandler(void* arg) {
           tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
         }
         pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
-        send_askMsg(sockfd, ackNum);
+        send_ackMsg(sockfd, ackNum);
         send_control_msg(sockfd, DATAACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
         if (state_transfer(sockfd, CLOSEWAIT) == -1){
@@ -252,7 +252,7 @@ void recvBuf_push(int sockfd, seg_t* segPtr) {
   return;
 }
 
-void send_askMsg(int sockfd, int ackNum) {
+void send_ackMsg(int sockfd, int ackNum) {
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
 

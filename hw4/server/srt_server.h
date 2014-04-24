@@ -137,7 +137,7 @@ int p2s_hash_get_idx(int port);
 int state_transfer(int sockfd, int new_state);
 void* close_wait(int sockfd);
 
-void send_askMsg(int sockfd, int ackNum);
+void send_ackMsg(int sockfd, int ackNum);
 void recvBuf_push(int sockfd, seg_t* segPtr);
 
 #endif

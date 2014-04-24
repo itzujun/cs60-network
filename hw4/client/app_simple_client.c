@@ -110,18 +110,18 @@ int main() {
 	printf("client connected to server, client port:%d, server port %d\n",CLIENTPORT2, SVRPORT2);
 
 	//send strings through the first connection
-      	char mydata[6] = "hello";
+  	char mydata[6] = "hello";
 	int i;
 	for(i=0;i<5;i++){
-      		srt_client_send(sockfd, mydata, 6);
+  		srt_client_send(sockfd, mydata, 6);
 		printf("send string:%s to connection 1\n",mydata);	
-      	}
+  	}
 	//send strings through the second connection
       	char mydata2[7] = "byebye";
 	for(i=0;i<5;i++){
       		srt_client_send(sockfd2, mydata2, 7);
 		printf("send string:%s to connection 2\n",mydata2);	
-      	}
+  	}
 
 	//wait for a while and close the connections
 	sleep(WAITTIME);
