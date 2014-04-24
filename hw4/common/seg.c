@@ -150,7 +150,6 @@ int snp_recvseg(int connection, seg_t* segPtr)
 }
 
 int seglost(seg_t* segPtr) {
-    return 0;
 	int random = rand()%100;
 	if(random<PKT_LOSS_RATE*100) {
 		//50% probability of losing a segment
@@ -185,7 +184,7 @@ int seglost(seg_t* segPtr) {
 //use 1s complement for checksum calculation
 unsigned short checksum(seg_t* segment)
 {
-    unsigned short* dataBuf = (unsigned long*)segment;
+    unsigned short* dataBuf = (unsigned short*)segment;
     // set checksum as long type in order to caputre the carries
     unsigned short chksum = 0;
     int len = sizeof(segment->header);
@@ -218,8 +217,8 @@ unsigned short checksum(seg_t* segment)
 int checkchecksum(seg_t* segment)
 {
     unsigned short chksum = checksum(segment);
-    printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
-    printf("%s: the checkchecksum is %d!\n", __func__, chksum);
+    // printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
+    // printf("%s: the checkchecksum is %d!\n", __func__, chksum);
     if(chksum == 0)
         return 1;
     else

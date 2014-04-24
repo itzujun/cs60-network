@@ -199,6 +199,7 @@ int srt_server_close(int sockfd) {
 //
 
 void *seghandler(void* arg) {  
+  int finGet = 0;
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   while(1) {
     if(snp_recvseg(overlay_conn, segPtr) == 1){
@@ -213,17 +214,22 @@ void *seghandler(void* arg) {
         send_control_msg(sockfd, FINACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
         printf("<func: %s>: get FIN on sockfd %d:\n", __func__, sockfd);
-        if (state_transfer(sockfd, CLOSEWAIT) == -1){
-          printf("FIN duplicate!\n");
+        if(finGet == 0) {
+          if (state_transfer(sockfd, CLOSEWAIT) == -1){
+            printf("%s: state tranfer err!\n", __func__);
+          } else {
+            finGet = 1;
+            // creating new thread
+            int pthread_err = pthread_create(threads + (thread_count++), NULL,
+              (void *) close_wait, (void *) sockfd);
+            if (pthread_err != 0) {
+              printf("Create thread Failed!\n");
+              return;
+            }
+          }
         }
         else{
-          // creating new thread
-          int pthread_err = pthread_create(threads + (thread_count++), NULL,
-            (void *) close_wait, (void *) sockfd);
-          if (pthread_err != 0) {
-            printf("Create thread Failed!\n");
-            return;
-          }
+          printf("FIN duplicate!\n");
         }
       }
       else if(segPtr->header.type == DATA && 
