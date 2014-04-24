@@ -127,15 +127,28 @@ int srt_server_accept(int sockfd) {
 // this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
 //
 int srt_server_recv(int sockfd, void* buf, unsigned int length) {
+  // printf("<func: %s>\n", __func__);
   while(1) {
+    // printf("<func: %s>: in while\n", __func__);
     pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
-    if(tcb_table[sockfd]->usedBufLen == length) {
-      strncpy(buf, tcb_table[sockfd]->recvBuf, length);
-      bzero(tcb_table[sockfd]->recvBuf, sizeof(char) * tcb_table[sockfd]->usedBufLen);
-      tcb_table[sockfd]->usedBufLen = 0;
+    // printf("<func: %s>: lock get, usedBufLen %d, sockfd %d:\n", __func__, tcb_table[sockfd]->usedBufLen, sockfd);
+    if(tcb_table[sockfd]->usedBufLen >= length) {
+      // int c;
+      // for(c = 0; c < length; c++) {
+      //   printf("%d %c \n", *(tcb_table[sockfd]->recvBuf + c), (char)(*(tcb_table[sockfd]->recvBuf + c)));
+      // }
+      memcpy(buf, tcb_table[sockfd]->recvBuf, length);
+      int i;
+      for(i = length; i < tcb_table[sockfd]->usedBufLen; i++) {
+        tcb_table[sockfd]->recvBuf[i - length] = tcb_table[sockfd]->recvBuf[i];
+      }
+      tcb_table[sockfd]->usedBufLen -= length;
+      // printf("<func: %s>: sockfd %d going to return 0:\n", __func__, sockfd);
+      pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
       return 0;
+    } else {
+      pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
     }
-    pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
     sleep(RECVBUF_POLLING_INTERVAL);
   }
   return -1;
@@ -149,6 +162,7 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length) {
 //
 
 int srt_server_close(int sockfd) {
+  printf("<func: %s>\n", __func__);
   // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if(tcb_table[sockfd] == NULL)
     printf("%s: tcb not found!\n", __func__);
@@ -198,6 +212,7 @@ void *seghandler(void* arg) {
       else if(segPtr->header.type == FIN){
         send_control_msg(sockfd, FINACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+        printf("<func: %s>: get FIN on sockfd %d:\n", __func__, sockfd);
         if (state_transfer(sockfd, CLOSEWAIT) == -1){
           printf("FIN duplicate!\n");
         }
@@ -216,8 +231,9 @@ void *seghandler(void* arg) {
         pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
         int ackNum = tcb_table[sockfd]->expect_seqNum;
         if(segPtr->header.seq_num == tcb_table[sockfd]->expect_seqNum) {
-          strncat(tcb_table[sockfd]->recvBuf, segPtr->data, segPtr->header.length);
-          tcb_table[sockfd]->usedBufLen++;
+          memcpy(tcb_table[sockfd]->recvBuf + tcb_table[sockfd]->usedBufLen, segPtr->data, segPtr->header.length);
+          printf("<func: %s>: get len %d on sockfd %d:\n", __func__, segPtr->header.length, sockfd);
+          tcb_table[sockfd]->usedBufLen += segPtr->header.length;
           ackNum = segPtr->header.seq_num;
           tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
         }
@@ -225,18 +241,6 @@ void *seghandler(void* arg) {
         send_ackMsg(sockfd, ackNum);
         send_control_msg(sockfd, DATAACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
-        if (state_transfer(sockfd, CLOSEWAIT) == -1){
-          printf("FIN duplicate!\n");
-        }
-        else{
-          // creating new thread
-          int pthread_err = pthread_create(threads + (thread_count++), NULL,
-            (void *) close_wait, (void *) sockfd);
-          if (pthread_err != 0) {
-            printf("Create thread Failed!\n");
-            return;
-          }
-        }
       }
       else{
         printf("%s: unkown msg type!\n", __func__);
@@ -266,6 +270,7 @@ void send_ackMsg(int sockfd, int ackNum) {
 }
 
 void *close_wait(int sockfd) { 
+  // printf("<func: %s>\n", __func__);
   sleep(CLOSEWAIT_TIMEOUT);
   // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
   if (state_transfer(sockfd, CLOSED) == -1)
@@ -278,16 +283,17 @@ void *close_wait(int sockfd) {
 }
 
 int init_tcb(int sockfd, int port) {
-  svr_tcb_t* tcb_t = tcb_table[sockfd];
-  tcb_t->svr_nodeID = 0;  // currently unused
-  tcb_t->svr_portNum = port;   
-  tcb_t->client_nodeID = 0;  // currently unused
-  tcb_t->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
-  tcb_t->state = CLOSED; 
-  tcb_t->expect_seqNum = 0; 
-  tcb_t->recvBuf = (char*) malloc(sizeof(char) * RECEIVE_BUF_SIZE); 
-  tcb_t->usedBufLen = 0; 
-  tcb_t->bufMutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t)); 
+  svr_tcb_t* tcb = tcb_table[sockfd];
+  tcb->svr_nodeID = 0;  // currently unused
+  tcb->svr_portNum = port;   
+  tcb->client_nodeID = 0;  // currently unused
+  tcb->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
+  tcb->state = CLOSED; 
+  tcb->expect_seqNum = 0; 
+  tcb->recvBuf = (char*) malloc(sizeof(char) * RECEIVE_BUF_SIZE); 
+  tcb->usedBufLen = 0; 
+  tcb->bufMutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t)); 
+  pthread_mutex_init(tcb->bufMutex, NULL);
 
   int i;
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
@@ -353,27 +359,27 @@ int state_transfer(int sockfd, int new_state) {
   if(new_state == CLOSED) {
     if (tcb_table[sockfd]->state == CLOSEWAIT) {
       tcb_table[sockfd]->state = CLOSED;
-      printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
       return 0;
     }
   } else if (new_state == CLOSEWAIT) {
     if (tcb_table[sockfd]->state == CLOSEWAIT
       || tcb_table[sockfd]->state == CONNECTED) {
       tcb_table[sockfd]->state = CLOSEWAIT;
-      printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
       return 0;
     }
   } else if (new_state == CONNECTED) {
     if (tcb_table[sockfd]->state == CONNECTED
       || tcb_table[sockfd]->state == LISTENING) {
       tcb_table[sockfd]->state = CONNECTED;
-      printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
       return 0;
     }
   } else if (new_state == LISTENING) {
     if (tcb_table[sockfd]->state == CLOSED) {
       tcb_table[sockfd]->state = LISTENING;
-      printf("State of sockfd %d transfer to %s\n", sockfd, "LISTENING");
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "LISTENING");
       return 0;
     }
   }

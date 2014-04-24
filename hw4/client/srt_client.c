@@ -173,7 +173,7 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
 }
 
 int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
-  printf("<func: %s>\n", __func__);
+  // printf("<func: %s>\n", __func__);
   if(tend.tv_sec - tstart.tv_sec > 0)
     return 1;
   else if(tend.tv_nsec - tstart.tv_nsec > timeout_ns)
@@ -214,12 +214,11 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
   // else
     // printf("in func %s\n", __func__);
 
-  int seg_start = 0, seg_end = 0 , data_idx = 0, is_first = 1; 
+  int data_idx = 0, is_first = 1; 
    // mutual exclusion free for buffer operation
   // printf("%s: lock\n", __func__);
   pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
   do {
-    int seg_idx = 0;
     // printf("%s: while loop, data_idx %d, seg_idx %d \n", __func__, data_idx, seg_idx);
     // create buffer node
     segBuf_t* bufNode = (segBuf_t*) malloc(sizeof(segBuf_t));
@@ -230,39 +229,42 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     bufNode->seg.header.type = DATA;
     bufNode->seg.header.length = 0;
     bufNode->sentTime = 0;  // unsent bufeNode, default to 0
+    
     // write the data into seg data area
-    if (seg_start == 0) {
-      // add header
-      strcpy(bufNode->seg.data, "!&");
-      bufNode->seg.header.length += 2;
-      seg_idx += 2;
-      seg_start = 1;
-    } 
-    if (data_idx < length && seg_idx < MAX_SEG_LEN) {
-      int len = MIN(length - data_idx - 1, MAX_SEG_LEN - seg_idx - 1);
-      strncat(bufNode->seg.data, data + data_idx, len);
-      bufNode->seg.header.length += len;
-      data_idx += len;
-      seg_idx += len;
-    }
-    if(data_idx == length && seg_idx < MAX_SEG_LEN - 2) {
-      strcat(bufNode->seg.data, "!#");
-      bufNode->seg.header.length += 2;
-      seg_end = 1;
-    }
+    int len = MIN(length - data_idx, MAX_SEG_LEN);
+    memcpy(bufNode->seg.data, data + data_idx, len);
+    bufNode->seg.header.length += len;
+    data_idx += len;
+
+    // int c;
+    // for(c = 0; c < len; c++) {
+    //   printf("%d %c \n", *((char*)data + c), (char)(*((char*)data + c)));
+    // }
+    // for(c = 0; c < len; c++) {
+    //   printf("%d %c \n", *(bufNode->seg.data + c), (char)(*(bufNode->seg.data + c)));
+    // }
+
+    printf("<func: %s>: sockfd %d's length %d\n", __func__, sockfd, bufNode->seg.header.length);
     tcb_table[sockfd]->next_seqNum += bufNode->seg.header.length;
     sendBuf_append(tcb_table[sockfd], bufNode, is_first);
-    if(is_first == 1)
-      is_first = 0;
+    if(is_first == 1) is_first = 0;
 
     // char testOutPut[MAX_SEG_LEN + 1];
     // strcat(testOutPut, "\0");
     // puts(testOutPut);
 
-  } while(seg_end != 0);
+  } while(data_idx < length);
 
   sendBuf_instantSend(tcb_table[sockfd]);
   pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+
+  // create sendBuf_timer for this tcb buffer
+  int pthread_err = pthread_create(threads + (thread_count++), NULL,
+    (void *) sendBuf_timer, (void *) tcb_table[sockfd]->client_portNum);
+  if (pthread_err != 0) {
+    printf("%s: Create thread Failed!\n", __func__);
+    return;
+  }
   // printf("%s: unlock\n", __func__);
   return 1;
 }
@@ -286,13 +288,6 @@ void sendBuf_instantSend(client_tcb_t *tcb) {
     tcb->sendBufunSent = tcb->sendBufunSent->next;
   }
 
-  // create sendBuf_timer for this tcb buffer
-  int pthread_err = pthread_create(threads + (thread_count++), NULL,
-    (void *) sendBuf_timer, (void *) NULL);
-  if (pthread_err != 0) {
-    printf("%s: Create thread Failed!\n", __func__);
-    return;
-  }
 }
 
 // Disconnect from a srt server
@@ -457,12 +452,12 @@ void *seghandler(void *arg) {
 }
 
 void sendBuf_handleACK(int sockfd, int ack_num) {
-  printf("<func: %s, ack_num %d>\n", __func__, ack_num);
+  // printf("<func: %s, ack_num %d>\n", __func__, ack_num);
   client_tcb_t *tcb = tcb_table[sockfd];
-  printf("%s: entry get\n", __func__);
+  // printf("%s: entry get\n", __func__);
   // printf("%s: lock\n", __func__);
   pthread_mutex_lock(tcb->bufMutex);
-  printf("%s: lock get\n", __func__);
+  // printf("%s: lock get\n", __func__);
   // if(tcb->sendBufTail->seg.header.seq_num < ack_num)
   //   printf("%s: Going to release all buf.\n", __func__);
   if(tcb == NULL)
@@ -472,13 +467,13 @@ void sendBuf_handleACK(int sockfd, int ack_num) {
   } else {
     while(tcb->sendBufHead != NULL 
         && tcb->sendBufHead->seg.header.seq_num <= ack_num) {
-      printf("%s: inside while!!\n", __func__);
+      // printf("%s: inside while!!\n", __func__);
       segBuf_t* tmpPtr = tcb->sendBufHead;
       tcb->sendBufHead = tcb->sendBufHead->next;
-      printf("%s: head to next\n", __func__);
+      // printf("%s: head to next\n", __func__);
       if(tmpPtr == tcb->sendBufunSent && ack_num != MAX_SEQ_NO)
         printf("err in %s: try to relase an unsent node\n", __func__);
-      printf("%s: going to free!!!\n", __func__);
+      // printf("%s: going to free!!!\n", __func__);
       free(tmpPtr);
       tcb->unAck_segNum--;
     }
@@ -513,22 +508,26 @@ void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode, int is_first) {
 }
 
 int p2s_hash_get_sock(int port) {
-  return p2s_hash_t[p2s_hash_get_idx(port)]->sock;
+  int hash_idx = p2s_hash_get_idx(port);
+  return hash_idx == -1 ? hash_idx : p2s_hash_t[hash_idx]->sock;
 }
 
 int p2s_hash_get_idx(int port) {
-  printf("<func: %s>\n", __func__);
+  // printf("<func: %s>\n", __func__);
   int i;
   // printf("%s: search for port %d\n", __func__, port);
   for(i = 0; i < TCB_TABLE_SIZE; i++) {
     int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
-    if(p2s_hash_t[hash_idx] != NULL )
+    // if(p2s_hash_t[hash_idx] != NULL )
       // printf("%d %d\n", p2s_hash_t[hash_idx]->sock, p2s_hash_t[hash_idx]->port);
+    // printf("<func: %s>: checking idx: %d \n", __func__, hash_idx);
     if(p2s_hash_t[hash_idx] != NULL 
       && p2s_hash_t[hash_idx]->port == port) {
+      // printf("<func: %s> return idx\n", __func__);
       return hash_idx;
     }
   }
+  // printf("<func: %s> return -1\n", __func__);
   return -1;  
 }
 
@@ -537,7 +536,8 @@ void *sendBuf_timer(int client_port) {
   // printf("in func %s\n", __func__);
   int sockfd = p2s_hash_get_sock(client_port);
   if(sockfd == -1)
-    printf("<func: %s>: sockfd error!\n", __func__);
+    printf("<func: %s>: sockfd error on port %d\n", __func__, client_port);
+
   client_tcb_t *tcb = tcb_table[sockfd];
   while(tcb->unAck_segNum != 0 || tcb->sendBufHead == NULL) {
     sleep(SENDBUF_POLLING_INTERVAL);

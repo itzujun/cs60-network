@@ -39,7 +39,7 @@ int overlay_start() {
 	char hostname_buf[50];
 	// printf("Enter server name to connect:");
 	// scanf("%s",hostname_buf);
-	sprintf(hostname_buf, "%s", "localhost");;	// @TODO: this is just for test
+	sprintf(hostname_buf, "%s", "localhost");	// @TODO: this is just for test
 
 	hostInfo = gethostbyname(hostname_buf);
 	if(!hostInfo) {
@@ -117,7 +117,7 @@ int main() {
 		printf("send string:%s to connection 1\n",mydata);	
   	}
 	//send strings through the second connection
-      	char mydata2[7] = "byebye";
+  	char mydata2[7] = "byebye";
 	for(i=0;i<5;i++){
       		srt_client_send(sockfd2, mydata2, 7);
 		printf("send string:%s to connection 2\n",mydata2);	

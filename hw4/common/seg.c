@@ -121,7 +121,7 @@ int snp_recvseg(int connection, seg_t* segPtr)
                     printf("seg lost!!!\n");
                     continue;
                 }
-                memcpy(segPtr,buf,sizeof(seg_t));
+                memcpy(segPtr, (seg_t*)buf, sizeof(seg_t));
                 return 1;
             }
             else if(c=='!') {
@@ -139,6 +139,7 @@ int snp_recvseg(int connection, seg_t* segPtr)
 }
 
 int seglost(seg_t* segPtr) {
+    return 0;
 	int random = rand()%100;
 	if(random<PKT_LOSS_RATE*100) {
 		//50% probability of losing a segment
