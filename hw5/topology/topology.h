@@ -43,4 +43,7 @@ int* topology_getNbrArray();
 //returns the cost of the direct link between the two given nodes 
 //if no direct link between the two given nodes, INFINITE_COST is returned
 unsigned int topology_getCost(int fromNodeID, int toNodeID);
+
+int topology_getNbrNumByName(char* hostname);
+
 #endif
