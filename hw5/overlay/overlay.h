@@ -31,4 +31,6 @@ void* listen_to_neighbor(void* arg);
 //it is called when receiving a signal SIGINT
 void overlay_stop(); 
 
+int server_socket_setup(int port);
+
 #endif

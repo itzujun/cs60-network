@@ -12,6 +12,8 @@
 #define MAX_NODE_NUM 256
 #define UINT_MAX 0xffffffff
 
+typedef struct in_addr inAdd;
+
 //this function returns node ID of the given hostname
 //the node ID is an integer of the last 8 digit of the node's IP address
 //for example, a node with IP address 202.120.92.3 will have node ID 3
@@ -49,5 +51,7 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID);
 
 int topology_getNbrNumByName(char* hostname);
 int* idxArray2NodeArray(int* idSet, int nodeNum);
+char* getHostnameFromNodeId(int nid);
+struct in_addr getIpFromNodeId(int nid);
 
 #endif

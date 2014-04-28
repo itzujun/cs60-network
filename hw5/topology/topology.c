@@ -16,15 +16,13 @@ int topology_getNodeIDfromname(char* hostname)
   struct hostent* host =NULL;
   int nodeId;
   if((host = gethostbyname(hostname)) == NULL) {
-    if(inetadd = inet_ntoa(addr) == NULL) {
-      fprintf(stderr, "err in file %s func %s line %d: gethostbyname err.\n"
-        , __FILE__, __func__, __LINE__); 
-      return -1;
-    }
+    fprintf(stderr, "err in file %s func %s line %d: gethostbyname err.\n"
+      , __FILE__, __func__, __LINE__); 
+    return -1;
   }
-  if((nodeId = topology_getNodeIDfromip((struct in_addr*)h->h_addr_list[0])) == -1) {
-   fprintf(stderr, "err in file %s func %s line %d: inet_ntoa err.\n"
-    , __FILE__, __func__, __LINE__); 
+  if((nodeId = topology_getNodeIDfromip((struct in_addr*)host->h_addr_list[0])) == -1) {
+    fprintf(stderr, "err in file %s func %s line %d: inet_ntoa err.\n"
+      , __FILE__, __func__, __LINE__); 
    return -1;
  }
  return nodeId;
@@ -299,4 +297,54 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
   }
 
   return UINT_MAX;
+}
+
+char* getHostnameFromNodeId(int nid) {
+  FILE *pFile;
+  size_t len;
+  char hname1[128], hname2[128];
+  int cost, nodeNum = 0, nodeId;
+  int idSet[MAX_NODE_NUM];
+  bzero(idSet, MAX_NODE_NUM * sizeof(int));
+
+  if(pFile = fopen("topology.dat", "r") == NULL) {
+    fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
+     __FILE__, __func__, __LINE__); 
+    return -1;
+  }
+  while (!feof(pFile)) {
+    fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+    nodeId = topology_getNodeIDfromname(hname1);
+    if (idSet[nodeId] == 0) {
+      idSet[nodeId] = 1;
+      if(nodeId == nid)
+        return hname1;
+    }
+    nodeId = topology_getNodeIDfromname(hname2);
+    if (idSet[nodeId] == 0) {
+      idSet[nodeId] = 1;
+      if(nodeId == nid)
+        return hname2;
+    }
+  }
+  fclose(pFile);
+  return NULL;
+}
+
+struct in_addr getIpFromNodeId(int nid) {
+  struct hostent* host =NULL;
+  struct in_addr* ip;
+  char* hostname;
+
+  if(hostname = getHostnameFromNodeId(nid) == NULL) {
+    fprintf(stderr, "err in file %s func %s line %d: getHostnameFromNodeId err.\n",
+      __FILE__, __func__, __LINE__); 
+    return -1;
+  }
+  if((host = gethostbyname(hostname)) == NULL) {
+    fprintf(stderr, "err in file %s func %s line %d: gethostbyname err.\n",
+      __FILE__, __func__, __LINE__); 
+    return -1;
+  }  
+  return *((struct in_addr*)host->h_addr_list[0]);
 }

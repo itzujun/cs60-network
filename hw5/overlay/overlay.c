@@ -28,6 +28,7 @@
 
 //you should start the ON processes on all the overlay hosts within this period of time
 #define OVERLAY_START_DELAY 60
+#define BUFFER_SIZE 1024
 
 /**************************************************************/
 //declare global variables
@@ -46,34 +47,156 @@ int network_conn;
 // This thread opens a TCP port on CONNECTION_PORT and waits for the incoming connection from all the neighbors that have a larger node ID than my nodeID,
 // After all the incoming connections are established, this thread terminates 
 void* waitNbrs(void* arg) {
-	//put your code here
-  return 0;
+	int nodeId, myNodeId = topology_getMyNodeID();
+	int nodeNum = topology_getNbrNum();
+	int srvconn = server_socket_setup(CONNECTION_PORT);
+	if(srvconn == -1) {
+		fprintf(stderr, "err in file %s func %s line %d: server_socket_setup err.\n"
+			, __FILE__, __func__, __LINE__); 
+	}
+
+	while(nodeNum-- > 0) {
+		struct sockaddr_in client_addr;
+		socklen_t length = sizeof(client_addr);
+
+		// connect with client
+		int client_conn = accept(srvconn, (struct sockaddr*) &client_addr,
+			&length);
+		if (client_conn < 0) {
+			fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
+				, __FILE__, __func__, __LINE__); 
+			return EXIT_FAILURE;
+		}
+
+		if(nodeId = topology_getNodeIDfromip(&(client_addr.sin_addr)) == -1) {
+			fprintf(stderr, "err in file %s func %s line %d: topology_getNodeIDfromip err.\n"
+				, __FILE__, __func__, __LINE__); 
+			return EXIT_FAILURE;
+		}
+		if(nodeId > myNodeId) {
+			if(nt_addconn(nt, nodeId, client_conn) == -1) {
+				fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
+					, __FILE__, __func__, __LINE__); 
+				return -1;
+			}		
+		}
+	}
+	
+	return 0;
+}
+
+int server_socket_setup(int port) {
+	// build server Socket
+	int server_socket = socket(PF_INET, SOCK_STREAM, 0);
+	if (server_socket < 0) {
+		printf("Socket create failed.\n");
+		return EXIT_FAILURE;
+	} else {
+		int opt = 1;
+		setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	}
+
+	// set server configuration
+	struct sockaddr_in server_addr;
+	bzero(&server_addr, sizeof(server_addr));
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+	server_addr.sin_port = htons(port);
+
+	// bind the port
+	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof(server_addr))) {
+		printf("Bind port %d failed.\n", port);
+		return -1;
+	}
+
+	// listening
+	if (listen(server_socket, LISTEN_QUEUE_LENGTH)) {
+		printf("Server Listen Failed!");
+		return EXIT_FAILURE;
+	}
+
+	return server_socket;
 }
 
 // This function connects to all the neighbors that have a smaller node ID than my nodeID
 // After all the outgoing connections are established, return 1, otherwise return -1
 int connectNbrs() {
-	//put your code here
-  return 0;
+	int nodeId, myNodeId = topology_getMyNodeID();
+	int nodeNum = topology_getNbrNum();
+	int sock = create_socket();
+	struct sockaddr_in server;
+
+	while(nodeNum-- > 0) {
+		server = config_server(CONNECTION_PORT);
+		nodeId = topology_getNodeIDfromip(&(server.sin_addr));
+		if(nodeId > myNodeId) continue;
+
+		// Connect to remote node
+		if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
+			perror("connect failed. Error");
+			return -1;
+		}
+
+		if(nt_addconn(nt, nodeId, sock) == -1)  {
+			fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
+				, __FILE__, __func__, __LINE__); 
+			return -1;
+		}
+	}
+	return 1;
 }
 
 //Each listen_to_neighbor thread keeps receiving packets from a neighbor. It handles the received packets by forwarding the packets to the SNP process.
 //all listen_to_neighbor threads are started after all the TCP connections to the neighbors are established 
 void* listen_to_neighbor(void* arg) {
-	//put your code here
-  return 0;
+	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE];
+	int* nodeIdArray = topology_getNodeArray();
+	while (1) {
+		bzero(msg, BUFFER_SIZE);
+		bzero(buffer, BUFFER_SIZE);
+		if (recv(nodeIdArray[*((int*)arg)].conn, buffer, BUFFER_SIZE, 0) < 0) {
+			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
+				, __FILE__, __func__, __LINE__); 
+			continue;
+		}
+	}
+	free(nodeIdArray);
+	free((int*)arg);
+	return 0;
 }
 
 //This function opens a TCP port on OVERLAY_PORT, and waits for the incoming connection from local SNP process. After the local SNP process is connected, this function keeps getting sendpkt_arg_ts from SNP process, and sends the packets to the next hop in the overlay network. If the next hop's nodeID is BROADCAST_NODEID, the packet should be sent to all the neighboring nodes.
 void waitNetwork() {
-	//put your code here
+	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE];
+	int srvconn = server_socket_setup(CONNECTION_PORT);
+	int client_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
+	if (client_conn < 0) {
+		fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
+			, __FILE__, __func__, __LINE__); 
+		return EXIT_FAILURE;
+	}
+
+	while (1) {
+		bzero(msg, BUFFER_SIZE);
+		bzero(buffer, BUFFER_SIZE);
+		if (recv(client_conn, buffer, BUFFER_SIZE, 0) < 0) {
+			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
+				, __FILE__, __func__, __LINE__); 
+			continue;
+		}
+	}
 }
 
 //this function stops the overlay
 //it closes all the connections and frees all the dynamically allocated memory
 //it is called when receiving a signal SIGINT
 void overlay_stop() {
-	//put your code here
+	int nbrNum = topology_getNbrNum(), i;
+	for(i = 0; i < nbrNum; i++) {
+		close(nt[i].conn);
+	}
+	nt_destroy(nt);
 }
 
 int main() {
