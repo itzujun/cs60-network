@@ -122,15 +122,14 @@ int server_socket_setup(int port) {
 // This function connects to all the neighbors that have a smaller node ID than my nodeID
 // After all the outgoing connections are established, return 1, otherwise return -1
 int connectNbrs() {
-	int nodeId, myNodeId = topology_getMyNodeID();
+	int nodeId, myNodeId = topology_getMyNodeID(), nbrIdx = 0;
 	int nodeNum = topology_getNbrNum();
 	int sock = create_socket();
 	struct sockaddr_in server;
+	int* nodeIdArray = topology_getNodeArray();
 
 	while(nodeNum-- > 0) {
-		server = config_server(CONNECTION_PORT);
-		nodeId = topology_getNodeIDfromip(&(server.sin_addr));
-		if(nodeId > myNodeId) continue;
+		server = config_server(nodeIdArray[nbrIdx].nodeIP);
 
 		// Connect to remote node
 		if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
@@ -138,27 +137,42 @@ int connectNbrs() {
 			return -1;
 		}
 
-		if(nt_addconn(nt, nodeId, sock) == -1)  {
+		if(nt_addconn(nt, nodeIdArray[nbrIdx].nodeID, sock) == -1)  {
 			fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
 				, __FILE__, __func__, __LINE__); 
 			return -1;
 		}
+		nbrIdx++;
 	}
 	return 1;
+}
+
+struct sockaddr_in config_server(in_addr_t nodeIP) {
+	struct sockaddr_in server;
+	server.sin_addr.s_addr = nodeIP;
+	server.sin_family = AF_INET;
+	server.sin_port = htons(CONNECTION_PORT);
+	return server;
 }
 
 //Each listen_to_neighbor thread keeps receiving packets from a neighbor. It handles the received packets by forwarding the packets to the SNP process.
 //all listen_to_neighbor threads are started after all the TCP connections to the neighbors are established 
 void* listen_to_neighbor(void* arg) {
-	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE];
+	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* nodeIdArray = topology_getNodeArray();
 	while (1) {
 		bzero(msg, BUFFER_SIZE);
 		bzero(buffer, BUFFER_SIZE);
-		if (recv(nodeIdArray[*((int*)arg)].conn, buffer, BUFFER_SIZE, 0) < 0) {
-			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
+		if (recvpkt(pkt, nodeIdArray[*((int*)arg)].conn) < 0) {
+			fprintf(stderr, "err in file %s func %s line %d: recvpkt err.\n"
 				, __FILE__, __func__, __LINE__); 
-			continue;
+		} else {
+			if(network_conn != -1) {
+				forwardpktToSNP(pkt, network_conn);
+			} else {
+			fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
+				, __FILE__, __func__, __LINE__); 
+			}
 		}
 	}
 	free(nodeIdArray);
@@ -168,10 +182,14 @@ void* listen_to_neighbor(void* arg) {
 
 //This function opens a TCP port on OVERLAY_PORT, and waits for the incoming connection from local SNP process. After the local SNP process is connected, this function keeps getting sendpkt_arg_ts from SNP process, and sends the packets to the next hop in the overlay network. If the next hop's nodeID is BROADCAST_NODEID, the packet should be sent to all the neighboring nodes.
 void waitNetwork() {
-	char buffer[BUFFER_SIZE], msg[BUFFER_SIZE];
+	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
+	int* nextNode = (int*)malloc(sizeof(int));
 	int srvconn = server_socket_setup(CONNECTION_PORT);
-	int client_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
-	if (client_conn < 0) {
+	int nodeNum = topology_getNbrNum();
+	int* nodeIdArray = topology_getNodeArray();
+	int i;
+	network_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
+	if (network_conn < 0) {
 		fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
 			, __FILE__, __func__, __LINE__); 
 		return EXIT_FAILURE;
@@ -180,12 +198,26 @@ void waitNetwork() {
 	while (1) {
 		bzero(msg, BUFFER_SIZE);
 		bzero(buffer, BUFFER_SIZE);
-		if (recv(client_conn, buffer, BUFFER_SIZE, 0) < 0) {
+		if (getpktToSend(pkt, nextNode, network_conn) < 0) {
 			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
 				, __FILE__, __func__, __LINE__); 
-			continue;
+		} else if (*nextNode == BROADCAST_NODEID) {
+			for(i = 0; i < nodeNum; i++) {
+				sendToNeighbor(pkt, nodeIdArray[i]);
+			}
+		} else {
+			sendToNeighbor(pkt, *nextNode);
 		}
 	}
+}
+
+void sendToNeighbor(snp_pkt_t* pkt, int nodeId) {
+	if(recvpkt(pkt, nodeIdArray[*nextNode)].conn != -1) {
+		forwardpktToSNP(pkt, network_conn);
+	} else {
+	fprintf(stderr, "err in file %s func %s line %d: neighbor %d is not connected yet.\n"
+		, __FILE__, __func__, __LINE__, *nextNode); 
+	}	
 }
 
 //this function stops the overlay

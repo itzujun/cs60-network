@@ -32,5 +32,7 @@ void* listen_to_neighbor(void* arg);
 void overlay_stop(); 
 
 int server_socket_setup(int port);
+struct sockaddr_in config_server(in_addr_t nodeIP) ;
+void sendToNeighbor(snp_pkt_t* pkt, int nodeId);
 
 #endif

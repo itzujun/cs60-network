@@ -25,4 +25,6 @@ void* pkthandler(void* arg);
 //it closes all the connections and frees all the dynamically allocated memory
 //it is called when the SNP process receives a signal SIGINT
 void network_stop();
+
+struct sockaddr_in config_server(int port);
 #endif
