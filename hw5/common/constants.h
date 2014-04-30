@@ -13,7 +13,8 @@
 /*******************************************************************/
 
 //this is the port number that is used for nodes to interconnect each other to form an overlay, you should change this to a random value to avoid conflicts with other students
-#define CONNECTION_PORT 3000
+//#define CONNECTION_PORT 3000
+#define CONNECTION_PORT 3011
 
 //this is the port number that is opened by overlay process and connected by the network layer process, you should change this to a random value to avoid conflicts with other students
 #define OVERLAY_PORT 3500
@@ -26,7 +27,7 @@
 //network layer parameters
 /*******************************************************************/
 //max node number supported by the overlay network 
-#define MAX_NODE_NUM 10
+#define MAX_NODE_NUM 256
 
 //infinite link cost value, if two nodes are disconnected, they will have link cost INFINITE_COST
 #define INFINITE_COST 999

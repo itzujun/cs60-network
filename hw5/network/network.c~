@@ -48,6 +48,7 @@ int connectToOverlay() {
 	if (sock == -1) {
 		printf("Could not create socket\n");
 	}
+	
 	// Configure server info
 	server = config_server(OVERLAY_PORT);
 
@@ -89,6 +90,7 @@ void* routeupdate_daemon(void* arg) {
 	pkt->header.length = 0;
 	pkt->header.type = ROUTE_UPDATE;
 	while(1) {
+	  printf("%s: updating routeinfo\n", __func__);
 		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
 		sleep(ROUTEUPDATE_INTERVAL);
 	}

@@ -6,6 +6,14 @@
 //Date: May 3,2010
 
 #include "topology.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/unistd.h>
+#include <strings.h>
 
 //this function returns node ID of the given hostname
 //the node ID is an integer of the last 8 digit of the node's IP address
@@ -26,6 +34,7 @@ int topology_getNodeIDfromname(char* hostname)
       , __FILE__, __func__, __LINE__); 
     return -1;
   }
+  //printf("%s: nodeid is %d\n", __func__, nodeId);
   return nodeId;
 }
 
@@ -36,7 +45,7 @@ int topology_getNodeIDfromip(struct in_addr* addr)
   struct sockaddr_in sa;
   char inetadd[INET_ADDRSTRLEN]; 
   char *nodeId;
-  inet_ntop(AF_INET, &(sa.sin_addr), inetadd, INET_ADDRSTRLEN);
+  inet_ntop(AF_INET, addr, inetadd, INET_ADDRSTRLEN);
   if(inetadd == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: inet_ntoa err.\n",
      __FILE__, __func__, __LINE__); 
@@ -48,6 +57,7 @@ int topology_getNodeIDfromip(struct in_addr* addr)
      __FILE__, __func__, __LINE__); 
     return -1;
   }
+  printf("%s: ip is %s, nodeid is %d\n", __func__, inetadd, atoi(nodeId + 1));
   return atoi(nodeId + 1);
 }
 
@@ -62,11 +72,13 @@ int topology_getMyNodeID()
      __FILE__, __func__, __LINE__); 
     return -1;
   }  
-  if(nodeId = topology_getNodeIDfromname(hostname) == -1) {
+  nodeId = topology_getNodeIDfromname(hostname);
+  if(nodeId == -1) {
     fprintf(stderr, "err in file %s func %s line %d: topology_getNodeIDfromname err.\n",
      __FILE__, __func__, __LINE__); 
     return -1;
   }  
+  //printf("%s: nodeid is %d\n", __func__, nodeId);
   return nodeId;
 }
 
@@ -91,20 +103,23 @@ int topology_getNbrNumByName(char* hostname) {
   char hname1[128], hname2[128];
   int cost, nbrNum = 0;
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
     return -1;
   }
+  
   while (!feof(pFile)) {
     fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+    //printf("%s: %s %s %d, and hostname %s\n", __func__, hname1, hname2, cost, hostname);
     if(strcmp(hname1, hostname) * strcmp(hname2, hostname) == 0) {
       nbrNum++;
+      //printf("%s: nbrNum is %d\n", __func__, nbrNum);
     }
   }
   fclose(pFile);
-  return nbrNum;
+  return nbrNum - 1;
 }
 
 //this functions parses the topology information stored in topology.dat
@@ -118,7 +133,7 @@ int topology_getNodeNum()
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -138,7 +153,7 @@ int topology_getNodeNum()
     }
   }
   fclose(pFile);
-  return nodeNum;  
+  return nodeNum - 1;  
 }
 
 //this functions parses the topology information stored in topology.dat
@@ -160,7 +175,7 @@ int* topology_getNodeArray()
   }  
 
   // build id set and count
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -168,12 +183,15 @@ int* topology_getNodeArray()
   }
   while (!feof(pFile)) {
     fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+    //printf("%s: %s %s %d, and hostname %s\n", __func__, hname1, hname2, cost, hostname);
     nodeId = topology_getNodeIDfromname(hname1);
+    //printf("%s: nodeId %d\n", __func__, nodeId);
     if (idSet[nodeId] == 0) {
       idSet[nodeId] = 1;
       nodeNum++;
     }
     nodeId = topology_getNodeIDfromname(hname2);
+    //printf("%s: nodeId %d\n", __func__, nodeId);
     if (idSet[nodeId] == 0) {
       idSet[nodeId] = 1;
       nodeNum++;
@@ -224,7 +242,7 @@ int* topology_getNbrArrayByName(char* hostname) {
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
   // build nbr idx arrey and count 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -232,8 +250,9 @@ int* topology_getNbrArrayByName(char* hostname) {
   }
   while (!feof(pFile)) {
     fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+    // printf("%s: %s %s %d, and hostname %s\n", __func__, hname1, hname2, cost, hostname);
     if (strcmp(hname1, hostname) == 0) {
-      nodeId = topology_getNodeIDfromname(hname1);
+      nodeId = topology_getNodeIDfromname(hname2);
     } else if (strcmp(hname2, hostname) == 0) {
       nodeId = topology_getNodeIDfromname(hname1);
     } else {
@@ -244,6 +263,7 @@ int* topology_getNbrArrayByName(char* hostname) {
        __FILE__, __func__, __LINE__); 
       return NULL;
     }
+    //printf("%s: nbr nodeId %d\n", __func__, nodeId);
     idSet[nodeId] = 1;
     nodeNum++;
   }
@@ -279,7 +299,9 @@ int* idxArray2NodeArray(int* idSet, int nodeNum) {
   int i, idx = 0;
   nodeArray = (int*)malloc(nodeNum * sizeof(int));
   for(i = 0; i < MAX_NODE_NUM; i++) {
+    //printf("%s: i %d, isset %d\n", __func__, i, idSet[i]);
     if(idSet[i]) {
+      //printf("%s: idx %d, nodeid %d\n", __func__, idx, i);
       nodeArray[idx++] = i;
     }
   }  
@@ -296,7 +318,7 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
   char hname1[128], hname2[128];
   int cost, nbrNum = 0;
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -322,7 +344,7 @@ char* getHostnameFromNodeId(int nid) {
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -352,7 +374,9 @@ struct in_addr getIpFromNodeId(int nid) {
   struct in_addr* ip;
   char* hostname;
 
+  
   if((hostname = getHostnameFromNodeId(nid)) == NULL) {
+    printf("%s: nid is %d\n", __func__, nid);
     fprintf(stderr, "err in file %s func %s line %d: getHostnameFromNodeId err.\n",
       __FILE__, __func__, __LINE__); 
   }

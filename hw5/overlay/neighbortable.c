@@ -26,13 +26,15 @@ nbr_entry_t* nt_create()
 {
   int nbrNum = topology_getNbrNum(), i;
   nbr_entry_t* nt = (nbr_entry_t*)malloc(nbrNum * sizeof(nbr_entry_t));
-  int* nodeIdArray = topology_getNodeArray();
+  int* nodeIdArray = topology_getNbrArray();
   if(nodeIdArray == NULL) {
    fprintf(stderr, "err in file %s func %s line %d: topology_getNodeArray err.\n"
     , __FILE__, __func__, __LINE__); 
     return NULL;
   }
-
+  //for(i = 0; i < nbrNum; i++) {
+  //  printf("%s: nodeid is %d\n", __func__, nodeIdArray[i]);
+  //}
   for(i = 0; i < nbrNum; i++) {
     nt[i].nodeID = nodeIdArray[i];
     struct in_addr nip = getIpFromNodeId(nodeIdArray[i]);
@@ -60,9 +62,11 @@ void nt_destroy(nbr_entry_t* nt)
 int nt_addconn(nbr_entry_t* nt, int nodeID, int conn)
 {
   int i, nbrNum = topology_getNbrNum();
+  printf("%s: going to add sock to nodeid %d with sock %d\n", __func__, nodeID, conn);
   for(i = 0; i < nbrNum; i++) {
     if(nt[i].nodeID == nodeID) { 
       nt[i].conn = conn;
+      printf("%s: add sock to nodeid %d with sock %d\n", __func__, nodeID, conn);
       return 1;
     }
   }

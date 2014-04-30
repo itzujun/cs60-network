@@ -48,29 +48,37 @@ int network_conn;
 // After all the incoming connections are established, this thread terminates 
 void* waitNbrs(void* arg) {
 	int nodeId, myNodeId = topology_getMyNodeID();
-	int nodeNum = topology_getNbrNum();
+	int nodeNum = topology_getNbrNum(), i, nbrToConNum = 0;
 	int srvconn = server_socket_setup(CONNECTION_PORT);
 	if(srvconn == -1) {
 		fprintf(stderr, "err in file %s func %s line %d: server_socket_setup err.\n"
 			, __FILE__, __func__, __LINE__); 
 	}
 
-	while(nodeNum-- > 0) {
+  printf("%s: getNbrNum %d\n", __func__, nodeNum);
+  for(i = 0; i < nodeNum; i++) {
+    if(nt[i].nodeID > myNodeId)
+      nbrToConNum++;
+  }
+	while(nbrToConNum-- > 0) {
 		struct sockaddr_in client_addr;
 		socklen_t length = sizeof(client_addr);
 
 		// connect with client
+		printf("%s: waiting..\n", __func__);
 		int client_conn = accept(srvconn, (struct sockaddr*) &client_addr,
 			&length);
 		if (client_conn < 0) {
 			fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
 				, __FILE__, __func__, __LINE__); 
 		}
-
-		if(nodeId = topology_getNodeIDfromip(&(client_addr.sin_addr)) == -1) {
+		
+    nodeId = topology_getNodeIDfromip(&(client_addr.sin_addr));
+		if(nodeId == -1) {
 			fprintf(stderr, "err in file %s func %s line %d: topology_getNodeIDfromip err.\n"
 				, __FILE__, __func__, __LINE__); 
 		}
+		printf("%s: get nbrid %d sock %d\n", __func__, nodeId, client_conn);
 		if(nodeId > myNodeId) {
 			if(nt_addconn(nt, nodeId, client_conn) == -1) {
 				fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
@@ -78,6 +86,7 @@ void* waitNbrs(void* arg) {
 			}		
 		}
 	}
+	printf("%s: finish\n", __func__);
 }
 
 int server_socket_setup(int port) {
@@ -121,28 +130,33 @@ int connectNbrs() {
 	int nodeNum = topology_getNbrNum();
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	struct sockaddr_in server;
-	int* nodeIdArray = topology_getNodeArray();
+	int* nodeIdArray = topology_getNbrArray();
 	
 	if (sock == -1) {
 		printf("Could not create socket\n");
 	}
 	while(nodeNum-- > 0) {
-		server = config_server(nt[nodeIdArray[nbrIdx]].nodeIP);
+	  if(nt[nbrIdx].nodeID >= myNodeId) 
+	    continue;
+		server = config_server(nt[nbrIdx].nodeIP);
 
 		// Connect to remote node
+		printf("%s: connecting\n", __func__);
 		if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
 			perror("connect failed. Error");
 			// printf("%s: ip is %s\n", __func__, inet_ntoa(nt[nodeIdArray[nbrIdx]].nodeIP));
-			return -1;
+			exit(1);
 		}
 
-		if(nt_addconn(nt, nt[nodeIdArray[nbrIdx]].nodeID, sock) == -1)  {
+    printf("%s: add nodeid %d's socket\n", __func__, nt[nbrIdx].nodeID);
+		if(nt_addconn(nt, nt[nbrIdx].nodeID, sock) == -1)  {
 			fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
 				, __FILE__, __func__, __LINE__);
-			return -1;
+			exit(1);
 		}
 		nbrIdx++;
 	}
+	printf("%s: finish\n", __func__);
 	return 1;
 }
 
@@ -158,11 +172,11 @@ struct sockaddr_in config_server(in_addr_t nodeIP) {
 //all listen_to_neighbor threads are started after all the TCP connections to the neighbors are established 
 void* listen_to_neighbor(void* arg) {
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
-	int* nodeIdArray = topology_getNodeArray();
 	while (1) {
-		if (recvpkt(pkt, nt[nodeIdArray[*((int*)arg)]].conn) < 0) {
-			fprintf(stderr, "err in file %s func %s line %d: recvpkt err.\n"
-				, __FILE__, __func__, __LINE__); 
+		if (recvpkt(pkt, nt[*((int*)arg)].conn) < 0) {
+			fprintf(stderr, "err in file %s func %s line %d: recvpkt err on nbr %d nodeid %d sock %d.\n"
+				, __FILE__, __func__, __LINE__, *((int*)arg), nt[*((int*)arg)].nodeID, nt[*((int*)arg)].conn); 
+				exit(1);
 		} else {
 			if(network_conn != -1) {
 				forwardpktToSNP(pkt, network_conn);
@@ -172,7 +186,6 @@ void* listen_to_neighbor(void* arg) {
 			}
 		}
 	}
-	free(nodeIdArray);
 	free((int*)arg);
 	return 0;
 }
@@ -181,9 +194,9 @@ void* listen_to_neighbor(void* arg) {
 void waitNetwork() {
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* nextNode = (int*)malloc(sizeof(int));
-	int srvconn = server_socket_setup(CONNECTION_PORT), i;
+	int srvconn = server_socket_setup(OVERLAY_PORT), i;
 	int nodeNum = topology_getNbrNum();
-	int* nodeIdArray = topology_getNodeArray();
+	int* nodeIdArray = topology_getNbrArray();
 	struct sockaddr_in client_addr;
 	socklen_t length = sizeof(client_addr);
 	
@@ -209,13 +222,18 @@ void waitNetwork() {
 }
 
 void sendToNeighbor(snp_pkt_t* pkt, int nodeId) {
-  int* nodeIdArray = topology_getNodeArray();
-	if(recvpkt(pkt, nt[nodeIdArray[nodeId]].conn) != -1) {
-		forwardpktToSNP(pkt, network_conn);
-	} else {
-	fprintf(stderr, "err in file %s func %s line %d: neighbor %d is not connected yet.\n"
-		, __FILE__, __func__, __LINE__, nodeId); 
-	}	
+  int nodeNum = topology_getNbrNum(), i;
+  int* nodeIdArray = topology_getNbrArray();
+  for(i = 0; i < nodeNum; i++) {
+    if(nodeId == nt[i].nodeID){
+      if(sendpkt(pkt, nt[i].conn) == -1){
+	      fprintf(stderr, "err in file %s func %s line %d: neighbor %d is not connected yet.\n"
+		      , __FILE__, __func__, __LINE__, nodeId); 
+      } else {
+        return;
+      }
+    }
+  }
 	free(nodeIdArray);
 }
 
@@ -227,6 +245,7 @@ void overlay_stop() {
 	for(i = 0; i < nbrNum; i++) {
 		close(nt[i].conn);
 	}
+	close(network_conn);
 	nt_destroy(nt);
 }
 
@@ -254,7 +273,8 @@ int main() {
 	pthread_create(&waitNbrs_thread,NULL,waitNbrs,(void*)0);
 
 	//wait for other nodes to start
-	sleep(OVERLAY_START_DELAY);
+	sleep(2);
+	printf("wake\n");
 	
 	//connect to neighbors with smaller node IDs
 	connectNbrs();

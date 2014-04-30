@@ -90,6 +90,7 @@ void* routeupdate_daemon(void* arg) {
 	pkt->header.length = 0;
 	pkt->header.type = ROUTE_UPDATE;
 	while(1) {
+	  printf("%s: updating routeinfo\n", __func__);
 		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
 		sleep(ROUTEUPDATE_INTERVAL);
 	}
@@ -102,6 +103,7 @@ void* routeupdate_daemon(void* arg) {
 //In this lab, after receiving a packet, this thread just outputs the packet received information without handling the packet 
 void* pkthandler(void* arg) {
 	snp_pkt_t pkt;
+	printf("%s: ON\n", __func__);
 	while(overlay_recvpkt(&pkt,overlay_conn)>0) {
 		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
 	}
