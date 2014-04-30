@@ -32,7 +32,7 @@ int overlay_start() {
 	if(listen(tcpserv_sd, 1) < 0) 
 		return -1;
 	printf("waiting for connection\n");
-	tcpclient_addr_len = sizeof(struct sockaddr);
+	tcpclient_addr_len = sizeof(struct sockaddr)
 	connection = accept(tcpserv_sd,(struct sockaddr*)&tcpclient_addr,&tcpclient_addr_len);
 	return connection;
 }
