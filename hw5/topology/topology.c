@@ -240,6 +240,7 @@ int* topology_getNbrArrayByName(char* hostname) {
   }
   while (!feof(pFile)) {
     fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+    printf("%s: %s %s %d", __func__, hname1, hname2, cost);
     if (strcmp(hname1, hostname) == 0) {
       nodeId = topology_getNodeIDfromname(hname1);
     } else if (strcmp(hname2, hostname) == 0) {

@@ -132,12 +132,13 @@ int connectNbrs() {
 		// Connect to remote node
 		if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
 			perror("connect failed. Error");
+			// printf("%s: ip is %s\n", __func__, inet_ntoa(nt[nodeIdArray[nbrIdx]].nodeIP));
 			return -1;
 		}
 
 		if(nt_addconn(nt, nt[nodeIdArray[nbrIdx]].nodeID, sock) == -1)  {
 			fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
-				, __FILE__, __func__, __LINE__); 
+				, __FILE__, __func__, __LINE__);
 			return -1;
 		}
 		nbrIdx++;
