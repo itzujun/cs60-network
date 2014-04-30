@@ -34,7 +34,7 @@ int topology_getNodeIDfromname(char* hostname)
       , __FILE__, __func__, __LINE__); 
     return -1;
   }
-  printf("%s: nodeid is %d\n", __func__, inetadd, nodeId);
+  printf("%s: nodeid is %d\n", __func__, nodeId);
   return nodeId;
 }
 
@@ -77,7 +77,7 @@ int topology_getMyNodeID()
      __FILE__, __func__, __LINE__); 
     return -1;
   }  
-  printf("%s: nodeid is %d\n", __func__, inetadd, nodeId);
+  printf("%s: nodeid is %d\n", __func__, nodeId);
   return nodeId;
 }
 
