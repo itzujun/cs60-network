@@ -8,8 +8,7 @@
 #define NEIGHBORTABLE_H
 #include <arpa/inet.h>
 #include "../common/constants.h"
-#include <stdio.h>
-#include <stdlib.h>
+
 //neighbor table entry definition
 //a neighbor table contains n entries where n is the number of neighbors
 //Each Node has a Overlay Network (ON) process running, each ON process maintains the neighbor table for the node that the process is running on.

@@ -48,7 +48,6 @@ int connectToOverlay() {
 	if (sock == -1) {
 		printf("Could not create socket\n");
 	}
-	
 	// Configure server info
 	server = config_server(OVERLAY_PORT);
 

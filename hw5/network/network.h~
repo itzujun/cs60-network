@@ -8,8 +8,6 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 #include "../common/constants.h"
-#include <stdio.h>
-#include <stdlib.h>
 //this function is used to for the SNP process to connect to the local ON process on port OVERLAY_PORT
 //connection descriptor is returned if success, otherwise return -1
 int connectToOverlay();

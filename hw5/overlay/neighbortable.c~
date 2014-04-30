@@ -25,7 +25,7 @@
 nbr_entry_t* nt_create()
 {
   int nbrNum = topology_getNbrNum(), i;
-  nbr_entry_t* nt = (nbr_entry_t*)malloc(nbrNum * sizeof(nbr_entry_t));
+  nbr_entry_t* nbr_table = (nbr_entry_t*)malloc(nbrNum * sizeof(nbr_entry_t));
   int* nodeIdArray = topology_getNodeArray();
   if(nodeIdArray == NULL) {
    fprintf(stderr, "err in file %s func %s line %d: topology_getNodeArray err.\n"
@@ -34,13 +34,13 @@ nbr_entry_t* nt_create()
   }
 
   for(i = 0; i < nbrNum; i++) {
-    nt[i].nodeID = nodeIdArray[i];
+    nbr_table[i].nodeID = nodeIdArray[i];
     struct in_addr nip = getIpFromNodeId(nodeIdArray[i]);
-    memcpy(&nt[i].nodeIP, &nip, sizeof(in_addr_t));
-    nt[i].conn = -1;
+    memcpy(&nbr_table[i].nodeIP, &nip, sizeof(in_addr_t));
+    nbr_table[i].conn = -1;
   }
   free(nodeIdArray);
-  return nt;
+  return nbr_table;
 }
 
 //This function destroys a neighbortable. It closes all the connections and frees all the dynamically allocated memory.

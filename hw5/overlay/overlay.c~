@@ -145,6 +145,18 @@ int connectNbrs() {
 	return 1;
 }
 
+int create_socket() {
+	int sock;
+
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == -1) {
+		printf("Could not create socket\n");
+	}
+	// puts("Socket created");
+
+	return sock;
+}
+
 struct sockaddr_in config_server(in_addr_t nodeIP) {
 	struct sockaddr_in server;
 	server.sin_addr.s_addr = nodeIP;

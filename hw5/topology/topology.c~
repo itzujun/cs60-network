@@ -6,14 +6,6 @@
 //Date: May 3,2010
 
 #include "topology.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/unistd.h>
-#include <strings.h>
 
 //this function returns node ID of the given hostname
 //the node ID is an integer of the last 8 digit of the node's IP address

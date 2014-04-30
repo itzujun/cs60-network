@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/unistd.h>
-#include <string.h>
+#include <strings.h>
 
 // overlay_sendpkt() is called by the SNP process to request the ON 
 // process to send a packet out to the overlay network. The 

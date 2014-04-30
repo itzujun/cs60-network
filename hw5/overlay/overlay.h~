@@ -33,6 +33,7 @@ void* listen_to_neighbor(void* arg);
 //it is called when receiving a signal SIGINT
 void overlay_stop(); 
 
+int create_socket();
 int server_socket_setup(int port);
 struct sockaddr_in config_server(in_addr_t nodeIP) ;
 void sendToNeighbor(snp_pkt_t* pkt, int nodeId);
