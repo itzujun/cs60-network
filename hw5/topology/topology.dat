@@ -1,5 +1,5 @@
-host3 host4 2
-host2 host4 3
-host1 host3 4
-host1 host2 5
-host1 host4 7
+green.cs.dartmouth.edu  gile.cs.dartmouth.edu 2
+hooker.cs.dartmouth.edu gile.cs.dartmouth.edu 3
+tahoe.cs.dartmouth.edu  green.cs.dartmouth.edu 4
+tahoe.cs.dartmouth.edu  hooker.cs.dartmouth.edu 5
+tahoe.cs.dartmouth.edu  gile.cs.dartmouth.edu 7
