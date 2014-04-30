@@ -56,6 +56,7 @@ int topology_getNodeIDfromip(struct in_addr* addr)
      __FILE__, __func__, __LINE__); 
     return -1;
   }
+  printf("%s: ip is %s, nodeid is %d\n", __func__, inetadd, atoi(nodeId + 1));
   return atoi(nodeId + 1);
 }
 
