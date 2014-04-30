@@ -99,7 +99,7 @@ int topology_getNbrNumByName(char* hostname) {
   char hname1[128], hname2[128];
   int cost, nbrNum = 0;
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -126,7 +126,7 @@ int topology_getNodeNum()
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -168,7 +168,7 @@ int* topology_getNodeArray()
   }  
 
   // build id set and count
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -232,7 +232,7 @@ int* topology_getNbrArrayByName(char* hostname) {
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
   // build nbr idx arrey and count 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -304,7 +304,7 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
   char hname1[128], hname2[128];
   int cost, nbrNum = 0;
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
@@ -330,7 +330,7 @@ char* getHostnameFromNodeId(int nid) {
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
-  pFile = fopen("topology.dat", "r");
+  pFile = fopen("topology/topology.dat", "r");
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
