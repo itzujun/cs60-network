@@ -44,7 +44,7 @@ int topology_getNodeIDfromip(struct in_addr* addr)
   struct sockaddr_in sa;
   char inetadd[INET_ADDRSTRLEN]; 
   char *nodeId;
-  inet_ntop(AF_INET, &(sa.sin_addr), inetadd, INET_ADDRSTRLEN);
+  inet_ntop(AF_INET, addr, inetadd, INET_ADDRSTRLEN);
   if(inetadd == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: inet_ntoa err.\n",
      __FILE__, __func__, __LINE__); 
