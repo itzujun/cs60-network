@@ -27,7 +27,7 @@
 #include "neighbortable.h"
 
 //you should start the ON processes on all the overlay hosts within this period of time
-#define OVERLAY_START_DELAY 60
+#define OVERLAY_START_DELAY 30
 #define BUFFER_SIZE 1024
 
 /**************************************************************/
@@ -129,27 +129,29 @@ int server_socket_setup(int port) {
 int connectNbrs() {
 	int nodeId, myNodeId = topology_getMyNodeID(), nbrIdx = 0;
 	int nodeNum = topology_getNbrNum();
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	int sock;
 	struct sockaddr_in server;
 	int* nodeIdArray = topology_getNbrArray();
 	
-	if (sock == -1) {
-		printf("Could not create socket\n");
-	}
+
 	while(!EXIT_SIG && nodeNum-- > 0) {
+	
 	  if(nt[nbrIdx].nodeID >= myNodeId) 
 	    continue;
-		server = config_server(nt[nbrIdx].nodeIP);
+	    
+	  sock = socket(AF_INET, SOCK_STREAM, 0);
+	  if (sock == -1) 
+		  printf("Could not create socket\n");
+	  server = config_server(nt[nbrIdx].nodeIP);
 
 		// Connect to remote node
-		printf("%s: connecting\n", __func__);
+		printf("%s: adding nodeid %d's socket\n", __func__, nt[nbrIdx].nodeID);
 		if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
 			perror("connect failed. Error");
 			// printf("%s: ip is %s\n", __func__, inet_ntoa(nt[nodeIdArray[nbrIdx]].nodeIP));
 			exit(1);
 		}
-
-    printf("%s: add nodeid %d's socket\n", __func__, nt[nbrIdx].nodeID);
+    
 		if(nt_addconn(nt, nt[nbrIdx].nodeID, sock) == -1)  {
 			fprintf(stderr, "err in file %s func %s line %d: nt_addconn err.\n"
 				, __FILE__, __func__, __LINE__);
@@ -182,8 +184,8 @@ void* listen_to_neighbor(void* arg) {
 			if(network_conn != -1) {
 				forwardpktToSNP(pkt, network_conn);
 			} else {
-			fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
-				, __FILE__, __func__, __LINE__); 
+			  fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
+				  , __FILE__, __func__, __LINE__); 
 			}
 		}
 	}
@@ -210,9 +212,9 @@ void waitNetwork() {
 
 	while (!EXIT_SIG) {
 		if (getpktToSend(pkt, nextNode, network_conn) < 0) {
-			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
-				, __FILE__, __func__, __LINE__); 
-				break;
+		  printf("%s: snp is down\n", __func__);
+			//fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
+			//	, __FILE__, __func__, __LINE__); 
 		} else if (*nextNode == BROADCAST_NODEID) {
 			for(i = 0; i < nodeNum; i++) {
 				sendToNeighbor(pkt, nodeIdArray[i]);
@@ -276,7 +278,7 @@ int main() {
 	pthread_create(&waitNbrs_thread,NULL,waitNbrs,(void*)0);
 
 	//wait for other nodes to start
-	sleep(2);
+	sleep(OVERLAY_START_DELAY);
 	printf("wake\n");
 	
 	//connect to neighbors with smaller node IDs
