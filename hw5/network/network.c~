@@ -92,9 +92,8 @@ void* routeupdate_daemon(void* arg) {
 	pkt->header.type = ROUTE_UPDATE;
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
-	  //printf("%s: updating routeinfo\n", __func__);
-		if(overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn) == -1)
-		  break;
+	  // printf("%s: updating routeinfo\n", __func__);
+		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
 		sleep(ROUTEUPDATE_INTERVAL);
 	}
 	printf("%s: OFF\n", __func__);
@@ -108,7 +107,8 @@ void* routeupdate_daemon(void* arg) {
 void* pkthandler(void* arg) {
 	snp_pkt_t pkt;
 	printf("%s: ON\n", __func__);
-	while(!EXIT_SIG && overlay_recvpkt(&pkt, overlay_conn)>0) {
+	while(!EXIT_SIG) {
+	  overlay_recvpkt(&pkt, overlay_conn)
 		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
 	}
 	printf("%s: OFF\n", __func__);

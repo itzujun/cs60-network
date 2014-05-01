@@ -177,15 +177,12 @@ void* listen_to_neighbor(void* arg) {
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	while (!EXIT_SIG) {
 		if (recvpkt(pkt, nt[*((int*)arg)].conn) < 0) {
-			fprintf(stderr, "err in file %s func %s line %d: recvpkt err on nbr %d nodeid %d sock %d.\n"
-				, __FILE__, __func__, __LINE__, *((int*)arg), nt[*((int*)arg)].nodeID, nt[*((int*)arg)].conn); 
-				exit(1);
+			printf("%s: snp process is down on the other side.\n", __func__);
 		} else {
 			if(network_conn != -1) {
 				forwardpktToSNP(pkt, network_conn);
 			} else {
-			  fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
-				  , __FILE__, __func__, __LINE__); 
+			  printf("%s: snp process is not connected, maybe try latter\n", __func__);
 			}
 		}
 	}
@@ -231,8 +228,7 @@ void sendToNeighbor(snp_pkt_t* pkt, int nodeId) {
   for(i = 0; i < nodeNum; i++) {
     if(nodeId == nt[i].nodeID){
       if(sendpkt(pkt, nt[i].conn) == -1){
-	      fprintf(stderr, "err in file %s func %s line %d: neighbor %d is not connected yet.\n"
-		      , __FILE__, __func__, __LINE__, nodeId); 
+	      printf("%s: snp process is down on the other side.\n", __func__);
       } else {
         return;
       }
