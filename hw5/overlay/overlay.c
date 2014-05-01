@@ -38,6 +38,7 @@
 nbr_entry_t* nt; 
 //declare the TCP connection to SNP process as global variable
 int network_conn; 
+int EXIT_SIG = 0;
 
 
 /**************************************************************/
@@ -60,7 +61,7 @@ void* waitNbrs(void* arg) {
     if(nt[i].nodeID > myNodeId)
       nbrToConNum++;
   }
-	while(nbrToConNum-- > 0) {
+	while(!EXIT_SIG && nbrToConNum-- > 0) {
 		struct sockaddr_in client_addr;
 		socklen_t length = sizeof(client_addr);
 
@@ -135,7 +136,7 @@ int connectNbrs() {
 	if (sock == -1) {
 		printf("Could not create socket\n");
 	}
-	while(nodeNum-- > 0) {
+	while(!EXIT_SIG && nodeNum-- > 0) {
 	  if(nt[nbrIdx].nodeID >= myNodeId) 
 	    continue;
 		server = config_server(nt[nbrIdx].nodeIP);
@@ -172,7 +173,7 @@ struct sockaddr_in config_server(in_addr_t nodeIP) {
 //all listen_to_neighbor threads are started after all the TCP connections to the neighbors are established 
 void* listen_to_neighbor(void* arg) {
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
-	while (1) {
+	while (!EXIT_SIG) {
 		if (recvpkt(pkt, nt[*((int*)arg)].conn) < 0) {
 			fprintf(stderr, "err in file %s func %s line %d: recvpkt err on nbr %d nodeid %d sock %d.\n"
 				, __FILE__, __func__, __LINE__, *((int*)arg), nt[*((int*)arg)].nodeID, nt[*((int*)arg)].conn); 
@@ -181,8 +182,8 @@ void* listen_to_neighbor(void* arg) {
 			if(network_conn != -1) {
 				forwardpktToSNP(pkt, network_conn);
 			} else {
-			fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
-				, __FILE__, __func__, __LINE__); 
+			  fprintf(stderr, "err in file %s func %s line %d: snp process is not connected yet.\n"
+				  , __FILE__, __func__, __LINE__); 
 			}
 		}
 	}
@@ -207,10 +208,11 @@ void waitNetwork() {
 			exit(1);
 	}
 
-	while (1) {
+	while (!EXIT_SIG) {
 		if (getpktToSend(pkt, nextNode, network_conn) < 0) {
 			fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
 				, __FILE__, __func__, __LINE__); 
+				break;
 		} else if (*nextNode == BROADCAST_NODEID) {
 			for(i = 0; i < nodeNum; i++) {
 				sendToNeighbor(pkt, nodeIdArray[i]);
@@ -247,6 +249,7 @@ void overlay_stop() {
 	}
 	close(network_conn);
 	nt_destroy(nt);
+	EXIT_SIG = 1;
 }
 
 int main() {

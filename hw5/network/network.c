@@ -29,6 +29,7 @@
 //declare global variables
 /**************************************************************/
 int overlay_conn; 		//connection to the overlay
+int EXIT_SIG = 0;
 
 
 /**************************************************************/
@@ -89,11 +90,14 @@ void* routeupdate_daemon(void* arg) {
 	pkt->header.dest_nodeID = BROADCAST_NODEID;
 	pkt->header.length = 0;
 	pkt->header.type = ROUTE_UPDATE;
-	while(1) {
-	  printf("%s: updating routeinfo\n", __func__);
-		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
+	printf("%s: ON\n", __func__);
+	while(!EXIT_SIG) {
+	  // printf("%s: updating routeinfo\n", __func__);
+		if(overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn) == -1)
+		  break;
 		sleep(ROUTEUPDATE_INTERVAL);
 	}
+	printf("%s: OFF\n", __func__);
 	free(pkt);
 	return 0;
 }
@@ -104,9 +108,10 @@ void* routeupdate_daemon(void* arg) {
 void* pkthandler(void* arg) {
 	snp_pkt_t pkt;
 	printf("%s: ON\n", __func__);
-	while(overlay_recvpkt(&pkt,overlay_conn)>0) {
+	while(!EXIT_SIG && overlay_recvpkt(&pkt, overlay_conn)>0) {
 		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
 	}
+	printf("%s: OFF\n", __func__);
 	close(overlay_conn);
 	overlay_conn = -1;
 	pthread_exit(NULL);
@@ -117,6 +122,7 @@ void* pkthandler(void* arg) {
 //it is called when the SNP process receives a signal SIGINT
 void network_stop() {
 	close(overlay_conn);
+	EXIT_SIG = 1;
 	//add your code here
 }
 
@@ -148,7 +154,7 @@ int main(int argc, char *argv[]) {
 	printf("network layer is started...\n");
 
 	//sleep forever
-	while(1) {
+	while(!EXIT_SIG) {
 		sleep(60);
 	}
 }

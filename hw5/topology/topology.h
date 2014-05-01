@@ -12,7 +12,6 @@
 
 
 #define UINT_MAX 0xffffffff
-#define LINENUM 1
 
 typedef struct in_addr inAdd;
 
