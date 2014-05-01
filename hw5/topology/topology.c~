@@ -15,7 +15,7 @@
 #include <sys/unistd.h>
 #include <strings.h>
 
-char filename[] = "cs60-network/hw5/topology/topology.dat";
+char filename[] = "/topology/topology.dat";
 
 //this function returns node ID of the given hostname
 //the node ID is an integer of the last 8 digit of the node's IP address
