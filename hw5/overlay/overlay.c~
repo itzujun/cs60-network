@@ -39,6 +39,7 @@ nbr_entry_t* nt;
 //declare the TCP connection to SNP process as global variable
 int network_conn; 
 int EXIT_SIG = 0;
+int keeplistenning = 1;
 
 
 /**************************************************************/
@@ -174,13 +175,20 @@ struct sockaddr_in config_server(in_addr_t nodeIP) {
 //Each listen_to_neighbor thread keeps receiving packets from a neighbor. It handles the received packets by forwarding the packets to the SNP process.
 //all listen_to_neighbor threads are started after all the TCP connections to the neighbors are established 
 void* listen_to_neighbor(void* arg) {
+
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	while (!EXIT_SIG) {
+	  if(!keeplistenning) {
+	    sleep(10000);
+	    printf("%s: stop listening.\n", __func__);
+	    continue;
+	  }
 		if (recvpkt(pkt, nt[*((int*)arg)].conn) < 0) {
-			fprintf(stderr, "err in file %s func %s line %d: recvpkt err on nbr %d nodeid %d sock %d.\n"
-				, __FILE__, __func__, __LINE__, *((int*)arg), nt[*((int*)arg)].nodeID, nt[*((int*)arg)].conn); 
+			printf("%s-%d: snp process is down on the other side.\n", __func__, *((int*)arg));
+			keeplistenning = 0;
 		} else {
-			if(network_conn != -1) {
+		  printf("%s-%d: get a packet.\n", __func__, *((int*)arg));
+			if(network_conn != -1 && !keeplistenning) {
 				forwardpktToSNP(pkt, network_conn);
 			} else {
 			  printf("%s: snp process is not connected, maybe try latter\n", __func__);
@@ -208,9 +216,16 @@ void waitNetwork() {
 			exit(1);
 	}
 
+  int keepwaitting = 1;
 	while (!EXIT_SIG) {
+	  if(!keepwaitting){
+	    sleep(10000);
+	    printf("%s: stop waiting.\n", __func__);
+	    continue;
+	  }
 		if (getpktToSend(pkt, nextNode, network_conn) < 0) {
 		  printf("%s: snp is down\n", __func__);
+		  keepwaitting = 0;
 			//fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
 			//	, __FILE__, __func__, __LINE__); 
 		} else if (*nextNode == BROADCAST_NODEID) {
@@ -229,7 +244,7 @@ void sendToNeighbor(snp_pkt_t* pkt, int nodeId) {
   for(i = 0; i < nodeNum; i++) {
     if(nodeId == nt[i].nodeID){
       if(sendpkt(pkt, nt[i].conn) == -1){
-	      printf("%s: snp process is down on the other side.\n", __func__);
+	      printf("%s: snp process is not connected on the other side.\n", __func__);
       } else {
         return;
       }
