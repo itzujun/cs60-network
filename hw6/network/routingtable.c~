@@ -129,7 +129,7 @@ void routingtable_print(routingtable_t* routingtable)
     for (i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
       routingtable_entry* entryPtr = routingtable[i];
       while(entryPtr != NULL)
-        printf("slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+        printf("slot [%d]: dest: %d next: %d", i, entryPtr->destNodeID, entryPtr->nextNodeID);
     }
     return;
   }
