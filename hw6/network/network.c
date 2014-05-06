@@ -52,8 +52,42 @@ pthread_mutex_t* routingtable_mutex;	//routingtable mutex
 //This function is used to for the SNP process to connect to the local ON process on port OVERLAY_PORT.
 //TCP descriptor is returned if success, otherwise return -1.
 int connectToOverlay() { 
-	//put your code here
-  return 0;
+	int sock;
+	char* recv_str;
+	struct sockaddr_in server;
+
+	// Create socket
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == -1) {
+		printf("Could not create socket\n");
+	}
+	
+	// Configure server info
+	server = config_server(OVERLAY_PORT);
+
+	// Connect to remote server
+	if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
+		perror("connect failed. Error");
+		return -1;
+	}
+	return sock;
+}
+
+struct sockaddr_in config_server(int port) {
+	struct sockaddr_in server;
+	struct hostent* host =NULL;
+
+	if((host = gethostbyname("localhost")) == NULL) {
+		fprintf(stderr, "err in file %s func %s line %d: gethostbyname err.\n"
+			, __FILE__, __func__, __LINE__); 
+		exit(1);
+	}
+
+  memcpy(&server.sin_addr.s_addr, host->h_addr_list[0], sizeof(struct in_addr)); 
+	server.sin_family = AF_INET;
+	server.sin_port = htons(port);
+
+	return server;
 }
 
 //This thread sends out route update packets every ROUTEUPDATE_INTERVAL time
@@ -62,7 +96,23 @@ int connectToOverlay() {
 //and use overlay_sendpkt() to send the packet out using BROADCAST_NODEID address.
 void* routeupdate_daemon(void* arg) {
 	//put your code here
-  return 0;
+	int nodeNum = topology_getNbrNum(), i;
+	int* nodeIdArray = topology_getNodeArray();
+	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
+
+	pkt->header.src_nodeID = topology_getMyNodeID();
+	pkt->header.dest_nodeID = BROADCAST_NODEID;
+	pkt->header.length = 0;
+	pkt->header.type = ROUTE_UPDATE;
+	printf("%s: ON\n", __func__);
+	while(!EXIT_SIG) {
+	  // printf("%s: updating routeinfo\n", __func__);
+		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
+		sleep(ROUTEUPDATE_INTERVAL);
+	}
+	printf("%s: OFF\n", __func__);
+	free(pkt);
+	return 0;
 }
 
 //This thread handles incoming packets from the ON process.
@@ -71,16 +121,25 @@ void* routeupdate_daemon(void* arg) {
 //If the packet is a SNP packet and the destination node is not this node, forward the packet to the next hop according to the routing table.
 //If this packet is an Route Update packet, update the distance vector table and the routing table. 
 void* pkthandler(void* arg) {
-	//put your code here
-  return 0;
+	snp_pkt_t pkt;
+	printf("%s: ON\n", __func__);
+	while(!EXIT_SIG) {
+	  overlay_recvpkt(&pkt, overlay_conn);
+		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
+	}
+	printf("%s: OFF\n", __func__);
+	close(overlay_conn);
+	overlay_conn = -1;
+	pthread_exit(NULL);
 }
 
 //This function stops the SNP process. 
 //It closes all the connections and frees all the dynamically allocated memory.
 //It is called when the SNP process receives a signal SIGINT.
 void network_stop() {
-	//put your code here
-  return;
+	close(overlay_conn);
+	EXIT_SIG = 1;
+	//add your code here
 }
 
 //This function opens a port on NETWORK_PORT and waits for the TCP connection from local SRT process.

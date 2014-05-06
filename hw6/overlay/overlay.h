@@ -6,6 +6,8 @@
 
 #ifndef OVERLAY_H 
 #define OVERLAY_H
+#include <stdio.h>
+#include <stdlib.h>
 #include "../common/constants.h"
 #include "../common/pkt.h"
 #include "neighbortable.h"
@@ -30,5 +32,9 @@ void* listen_to_neighbor(void* arg);
 //it closes all the connections and frees all the dynamically allocated memory
 //it is called when receiving a signal SIGINT
 void overlay_stop(); 
+
+int server_socket_setup(int port);
+struct sockaddr_in config_server(in_addr_t nodeIP) ;
+void sendToNeighbor(snp_pkt_t* pkt, int nodeId);
 
 #endif

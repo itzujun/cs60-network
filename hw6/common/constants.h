@@ -83,4 +83,6 @@
 
 //route update broadcasting interval in seconds
 #define ROUTEUPDATE_INTERVAL 5
+
+#define LISTEN_QUEUE_LENGTH 10
 #endif

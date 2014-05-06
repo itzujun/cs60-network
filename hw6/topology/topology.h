@@ -7,7 +7,13 @@
 
 #ifndef TOPOLOGY_H 
 #define TOPOLOGY_H
-#include <netdb.h>
+
+#include "../common/constants.h"
+
+
+#define UINT_MAX 0xffffffff
+
+typedef struct in_addr inAdd;
 
 //this function returns node ID of the given hostname
 //the node ID is an integer of the last 8 digit of the node's IP address
@@ -44,4 +50,12 @@ int* topology_getNbrArrayAndSelf();
 //returns the cost of the direct link between the two given nodes 
 //if no direct link between the two given nodes, INFINITE_COST is returned
 unsigned int topology_getCost(int fromNodeID, int toNodeID);
+
+int* topology_getNbrArrayByName(char* hostname);
+int* topology_getNbrArrayAndSelfByName(char* hostname);
+int* idxArray2NodeArray(int* idSet, int nodeNum);
+char* getHostnameFromNodeId(int nid);
+struct in_addr getIpFromNodeId(int nid);
+int topology_getNbrNumByName(char* hostname);
+
 #endif
