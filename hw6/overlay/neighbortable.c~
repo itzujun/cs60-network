@@ -34,6 +34,7 @@ nbr_entry_t* nt_create()
 //This function destroys a neighbortable. It closes all the connections and frees all the dynamically allocated memory.
 void nt_destroy(nbr_entry_t* nt)
 {
+  int i, nbrNum = topology_getNbrNum();
   if(nt != NULL) {
     free(nt);
     nt = NULL;

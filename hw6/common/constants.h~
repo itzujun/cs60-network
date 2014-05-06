@@ -68,7 +68,7 @@
 #define MAX_NODE_NUM 256
 
 //max routing table slots 
-#define MAX_ROUTINGTABLE_SLOTS 256
+#define MAX_ROUTINGTABLE_SLOTS 10
 
 //infinite link cost value
 //if two nodes are unconnected, they will have link cost INFINITE_COST

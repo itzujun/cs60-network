@@ -62,6 +62,7 @@ void nbrcosttable_print(nbr_cost_entry_t* nct)
 {
   if(nt != NULL) {
     int nbrNum = topology_getNbrNum(), i, myNodeId = topology_getMyNodeID(), cost;
+    
     printf("%s:\n", __func__);
     for(i = 0; i < nbrNum; i++) {
       printf("%d -> %d : %d\n", myNodeId, nct[i].nodeID, nct[i].cost);

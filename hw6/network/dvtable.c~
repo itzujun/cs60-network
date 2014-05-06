@@ -112,7 +112,6 @@ void dvtable_print(dv_t* dvtable)
       }
       printf("\n");
     }
-    return;
   }
   fprintf(stderr, "err in file %s func %s line %d: dvtable is null.\n"
     , __FILE__, __func__, __LINE__); 

@@ -38,7 +38,6 @@ int* topology_getNodeArray();
 //this functions parses the topology information stored in topology.dat
 //returns a dynamically allocated array which contains all the neighbors'IDs  
 int* topology_getNbrArray(); 
-int* topology_getNbrArrayAndSelf(); 
 
 //this functions parses the topology information stored in topology.dat
 //returns the cost of the direct link between the two given nodes 
