@@ -7,7 +7,29 @@
 //Return 1 if a sendseg_arg_t is succefully sent, otherwise return -1.
 int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
 {
-  return 0;
+  char bufstart[2];
+  char bufend[2];
+  bufstart[0] = '!';
+  bufstart[1] = '&';
+  bufend[0] = '!';
+  bufend[1] = '#';
+
+    // printf("<func: %s> send head\n", __func__);
+    if (send(connection, bufstart, 2, 0) < 0) {
+        return -1;
+    }
+    // printf("<func: %s> send body\n", __func__);
+    unsigned short chksum = checksum(segPtr);
+    segPtr->header.checksum = chksum;
+  if(send(connection,segPtr,sizeof(seg_t),0)<0) {
+        // printf("<func: %s> send body fail\n", __func__);
+    return -1;
+  }
+    // printf("<func: %s> send foot\n", __func__);
+  if(send(connection,bufend,2,0)<0) {
+    return -1;
+  }
+  return 1;
 }
 
 //SRT process uses this function to receive a  sendseg_arg_t structure which contains a segment and its src node ID from the SNP process. 
