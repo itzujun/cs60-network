@@ -270,7 +270,6 @@ void waitTransport() {
 		  pthread_mutex_lock(routingtable_mutex);
 		  routingtable_getnextnode(routingtable, destNode);
 		  pthread_mutex_unlock(routingtable_mutex);
-		  //@TODO: get from routing table
 			overlay_sendpkt(destNode, pkt, overlay_conn);
 		}
 	}
