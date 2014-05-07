@@ -1,6 +1,10 @@
 
 #include "seg.h"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 //SRT process uses this function to send a segment and its destination node ID in a sendseg_arg_t structure to SNP process to send out. 
 //Parameter network_conn is the TCP descriptor of the connection between the SRT process and the SNP process. 
@@ -19,16 +23,16 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
   memcpy(&snpSeg->seg, segPtr, sizeof(seg_t));
   
   // printf("<func: %s> send head\n", __func__);
-  if (send(connection, bufstart, 2, 0) < 0) {
+  if (send(network_conn, bufstart, 2, 0) < 0) {
       return -1;
   }
   // printf("<func: %s> send body\n", __func__);
-  if(send(connection, snpSeg, sizeof(seg_t), 0)<0) {
+  if(send(network_conn, snpSeg, sizeof(seg_t), 0)<0) {
         // printf("<func: %s> send body fail\n", __func__);
     return -1;
   }
     // printf("<func: %s> send foot\n", __func__);
-  if(send(connection,bufend,2,0)<0) {
+  if(send(network_conn,bufend,2,0)<0) {
     return -1;
   }
   return 1;
@@ -87,8 +91,8 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
                     puts("checksum err");
                     continue;
                 }
-                memcpy(segPtr, &((seg_t*)buf)->seg, sizeof(seg_t));
-                memcpy(src_nodeID, &((seg_t*)buf)->nodeID, sizeof(int));
+                memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
+                memcpy(src_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
                 return 1;
             }
             else if(c=='!') {
@@ -110,7 +114,7 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully received, otherwise return -1.
 int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
 {
-    char buf[sizeof(sendpkt_arg_t)+2]; 
+    char buf[sizeof(sendseg_arg_t)+2]; 
     char c;
     int idx = 0;
     // state can be 0,1,2,3; 
@@ -185,7 +189,7 @@ int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
   if (send(tran_conn, bufstart, 2, 0) < 0) {
     return -1;
   }
-  if(send(tran_conn, snpSeg, sizeof(sendpkt_arg_t), 0)<0) {
+  if(send(tran_conn, snpSeg, sizeof(sendseg_arg_t), 0)<0) {
     return -1;
   }
   if(send(tran_conn, bufend, 2, 0)<0) {

@@ -6,6 +6,7 @@
 //Date: May 3,2010
 
 #include "topology.h"
+#define _BSD_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <netdb.h>
@@ -13,7 +14,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/unistd.h>
-#include <strings.h>
+#include <string.h>
+#include <unistd.h>
 
 char filename[] = "topology/topology.dat";
 
@@ -44,7 +46,6 @@ int topology_getNodeIDfromname(char* hostname)
 //if the node ID can't be retrieved, return -1
 int topology_getNodeIDfromip(struct in_addr* addr)
 {
-  struct sockaddr_in sa;
   char inetadd[INET_ADDRSTRLEN]; 
   char *nodeId;
   inet_ntop(AF_INET, addr, inetadd, INET_ADDRSTRLEN);
@@ -101,7 +102,6 @@ int topology_getNbrNum()
 
 int topology_getNbrNumByName(char* hostname) {
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128];
   int cost, nbrNum = 0;
 
@@ -128,7 +128,6 @@ int topology_getNbrNumByName(char* hostname) {
 int topology_getNodeNum()
 { 
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128];
   int cost, nodeNum = 0, nodeId;
   int idSet[MAX_NODE_NUM];
@@ -162,11 +161,9 @@ int topology_getNodeNum()
 int* topology_getNodeArray()
 {
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128], hostname[1024];
-  int cost, nodeNum = 0, nodeId, i, idx = 0;
+  int cost, nodeNum = 0, nodeId;
   int idSet[MAX_NODE_NUM];
-  int* nodeArray;
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
   if(gethostname(hostname, 1024) == -1) {
@@ -199,7 +196,7 @@ int* topology_getNodeArray()
     }
   }
   fclose(pFile);
-  if(nodeId = topology_getNodeIDfromname(hostname) == -1) {
+  if((nodeId = topology_getNodeIDfromname(hostname)) == -1) {
     fprintf(stderr, "err in file %s func %s line %d: topology_getNodeIDfromname err.\n",
      __FILE__, __func__, __LINE__); 
     return NULL;
@@ -236,9 +233,8 @@ int* topology_getNbrArray()
 
 int* topology_getNbrArrayByName(char* hostname) {
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128];
-  int cost, nodeNum = 0, nodeId, i, idx = 0;
+  int cost, nodeNum = 0, nodeId;
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
@@ -247,7 +243,7 @@ int* topology_getNbrArrayByName(char* hostname) {
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
-    return;
+    return NULL;
   }
   
   while (fscanf(pFile, "%s %s %d", hname1, hname2, &cost) != EOF) {
@@ -324,9 +320,8 @@ int* topology_getNbrArrayAndSelf()
 
 int* topology_getNbrArrayAndSelfByName(char* hostname) {
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128];
-  int cost, nodeNum = 0, nodeId, i, idx = 0;
+  int cost, nodeNum = 0, nodeId;
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
@@ -335,7 +330,7 @@ int* topology_getNbrArrayAndSelfByName(char* hostname) {
   if(pFile == NULL) {
     fprintf(stderr, "err in file %s func %s line %d: fopen err.\n",
      __FILE__, __func__, __LINE__); 
-    return;
+    return NULL;
   }
   
   idSet[topology_getNodeIDfromname(hostname)] = 1; // add itself
@@ -379,9 +374,8 @@ int* topology_getNbrArrayAndSelfByName(char* hostname) {
 unsigned int topology_getCost(int fromNodeID, int toNodeID)
 {
   FILE *pFile;
-  size_t len;
   char hname1[128], hname2[128];
-  int cost, nbrNum = 0;
+  int cost;
 
   pFile = fopen(filename, "r");
   if(pFile == NULL) {
@@ -402,10 +396,9 @@ return INFINITE_COST;
 
 char* getHostnameFromNodeId(int nid) {
   FILE *pFile;
-  size_t len;
   char* hname1 = (char*)malloc(128 * sizeof(char));
   char* hname2 = (char*)malloc(128 * sizeof(char));
-  int cost, nodeNum = 0, nodeId;
+  int cost, nodeId;
   int idSet[MAX_NODE_NUM];
   bzero(idSet, MAX_NODE_NUM * sizeof(int));
 
@@ -436,9 +429,7 @@ char* getHostnameFromNodeId(int nid) {
 
 struct in_addr getIpFromNodeId(int nid) {
   struct hostent* host =NULL;
-  struct in_addr* ip;
   char* hostname;
-
   
   if((hostname = getHostnameFromNodeId(nid)) == NULL) {
     printf("%s: nid is %d\n", __func__, nid);

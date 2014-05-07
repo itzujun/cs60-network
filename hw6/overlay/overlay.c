@@ -19,7 +19,7 @@
 #include <signal.h>
 #include <sys/utsname.h>
 #include <assert.h>
-
+#include <strings.h>
 #include "../common/constants.h"
 #include "../common/pkt.h"
 #include "overlay.h"
@@ -89,6 +89,7 @@ void* waitNbrs(void* arg) {
 		}
 	}
 	printf("%s: finish\n", __func__);
+	return NULL;
 }
 
 int server_socket_setup(int port) {
@@ -128,12 +129,10 @@ int server_socket_setup(int port) {
 // This function connects to all the neighbors that have a smaller node ID than my nodeID
 // After all the outgoing connections are established, return 1, otherwise return -1
 int connectNbrs() {
-	int nodeId, myNodeId = topology_getMyNodeID(), nbrIdx = 0;
+	int myNodeId = topology_getMyNodeID(), nbrIdx = 0;
 	int nodeNum = topology_getNbrNum();
 	int sock;
 	struct sockaddr_in server;
-	int* nodeIdArray = topology_getNbrArray();
-	
 
 	while(!EXIT_SIG && nodeNum-- > 0) {
 	

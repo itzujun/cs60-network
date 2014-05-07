@@ -8,6 +8,8 @@
 #ifndef NETWORK_H
 #define NETWORK_H
 #include "../common/constants.h"
+#include "../common/pkt.h"
+#include "dvtable.h"
 #include <stdio.h>
 #include <stdlib.h>
 //this function is used to for the SNP process to connect to the local ON process on port OVERLAY_PORT
@@ -33,6 +35,11 @@ void network_stop();
 //When a local SRT process is disconnected, this function waits for the next SRT process to connect.
 void waitTranport();
 
+// helper functions
 struct sockaddr_in config_server(int port);
-char* getRouteInfo(int nodeNum);
+dv_entry_t* getRouteInfo(int nodeNum);
+int forwardHandler(snp_pkt_t* pkt);
+int routeUpdateHandler(snp_pkt_t*  pkt);
+int server_socket_setup(int port);
+
 #endif

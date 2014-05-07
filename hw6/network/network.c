@@ -43,6 +43,7 @@ dv_t* dv;				//distance vector table
 pthread_mutex_t* dv_mutex;		//dvtable mutex
 routingtable_t* routingtable;		//routing table
 pthread_mutex_t* routingtable_mutex;	//routingtable mutex
+int EXIT_SIG = 0;
 
 
 /**************************************************************/
@@ -53,7 +54,6 @@ pthread_mutex_t* routingtable_mutex;	//routingtable mutex
 //TCP descriptor is returned if success, otherwise return -1.
 int connectToOverlay() { 
 	int sock;
-	char* recv_str;
 	struct sockaddr_in server;
 
 	// Create socket
@@ -96,19 +96,20 @@ struct sockaddr_in config_server(int port) {
 //and use overlay_sendpkt() to send the packet out using BROADCAST_NODEID address.
 void* routeupdate_daemon(void* arg) {
 	//put your code here
-	int nbrNum = topology_getNbrNum(), nodeNum = topology_getNodeNUm(), i;
-	int* nodeIdArray = topology_getNodeArray();
-	int* routeInfo;
+	int nodeNum = topology_getNodeNum();
+	dv_entry_t* routeInfo;
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 
 	pkt->header.src_nodeID = topology_getMyNodeID();
 	pkt->header.dest_nodeID = BROADCAST_NODEID;
 	pkt->header.length = 0;
 	pkt->header.type = ROUTE_UPDATE;
-	memcpy(dataPtr, &nodeNum, sizeof(int));
+	memcpy(pkt->data, &nodeNum, sizeof(int));
+  pthread_mutex_lock(dv_mutex);
 	routeInfo = getRouteInfo(nodeNum);
   memcpy((pkt->data + sizeof(int) / sizeof(char))
-    , routeInfo, nodeNum * (2 * sizeof(int));
+    , routeInfo, nodeNum * (sizeof(routeupdate_entry_t)));
+	pthread_mutex_unlock(dv_mutex);
 
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
@@ -122,16 +123,14 @@ void* routeupdate_daemon(void* arg) {
 	return 0;
 }
 
-int* getRouteInfo(int nodeNum) {
+dv_entry_t* getRouteInfo(int nodeNum) {
   int myNodeId = topology_getMyNodeID();
-  pthread_mutex_lock(dv_mutex);
   while(dv != NULL) {
     if(dv->nodeID == myNodeId) {
-      return dv.dvEntry[i];
+      return dv->dvEntry;
     }
     dv++;
   }
-  pthread_mutex_unlock(dv_mutex);
   fprintf(stderr, "err in file %s func %s line %d: cannot not get entries.\n"
     , __FILE__, __func__, __LINE__); 
   return NULL;
@@ -144,18 +143,18 @@ int* getRouteInfo(int nodeNum) {
 //If this packet is an Route Update packet, update the distance vector table and the routing table. 
 void* pkthandler(void* arg) {
   int myNodeId = topology_getMyNodeID();
-	snp_pkt_t pkt;
+	snp_pkt_t* pkt = NULL;
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
-	  overlay_recvpkt(&pkt, overlay_conn);
+	  overlay_recvpkt(pkt, overlay_conn);
 	  if(pkt->header.type == ROUTE_UPDATE) {
       if(routeUpdateHandler(pkt) != 1) {
 	      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
 		      , __FILE__, __func__, __LINE__); 
       }
 	  } else if (pkt->header.type == ROUTE_UPDATE) {
-	    if(pkt->heade.dest_nodeID == myNodeId) {
-	      if(forwardsegToSRT(transport_conn, pkt->heade.dest_nodeID, pkt->data) != 1) {
+	    if(pkt->header.dest_nodeID == myNodeId) {
+	      if(forwardsegToSRT(transport_conn, pkt->header.dest_nodeID, (seg_t*)pkt->data) != 1) {
 		      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
 			      , __FILE__, __func__, __LINE__); 
 	      }
@@ -169,7 +168,7 @@ void* pkthandler(void* arg) {
 		  fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
 			  , __FILE__, __func__, __LINE__); 
 	  }
-		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
+		printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
 	}
 	printf("%s: OFF\n", __func__);
 	close(overlay_conn);
@@ -177,8 +176,8 @@ void* pkthandler(void* arg) {
 	pthread_exit(NULL);
 }
 
-int forwardHandler(snp_pkt_t pkt) {
-  int nextNodeId = routingtable_getnextnode(pkt->heade.dest_nodeID);
+int forwardHandler(snp_pkt_t* pkt) {
+  int nextNodeId = routingtable_getnextnode(routingtable, pkt->header.dest_nodeID);
   if(nextNodeId == -1) {
     fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId err.\n"
       , __FILE__, __func__, __LINE__); 
@@ -189,21 +188,20 @@ int forwardHandler(snp_pkt_t pkt) {
   }
 }
 
-int routeUpdateHandler(snp_pkt_t pkt) {
-  int myNodeId = topology_getMyNodeID(), nodeID, cost, i, j;
-  int* routeInfo = pkt->data;
-  int nodeNum = *(routeInfo), nbrNum = topology_getNbrNum();
+int routeUpdateHandler(snp_pkt_t* pkt) {
+  int myNodeId = topology_getMyNodeID(), i;
+  pkt_routeupdate_t* routeupdate = (pkt_routeupdate_t*)pkt->data;
+  unsigned int nodeNum = routeupdate->entryNum;
   
   // step 1, update that particular entry
   pthread_mutex_lock(dv_mutex);
   while(dv != NULL) {
-    if(dv->nodeID == pkt->src_nodeID) {
+    if(dv->nodeID == pkt->header.src_nodeID) {
       for(i = 0; i < nodeNum; i++) {
         // when i = 0, it skip the nodeNum and first id
         // when i > 0, it skip this cost the next node id
-        dv.dvEntry[i].cost = *(routeInfo + 2 + 2 * i);
-        memcpy(routeInfo++, &dv.dvEntry[i].nodeID, sizeof(int));
-        memcpy(routeInfo++, &, sizeof(int));
+        // dv->dvEntry[i].cost = *(pkt->data + 2 + 2 * i);
+        dv->dvEntry[i].cost = routeupdate->entry[i].cost;
       }
       break;
     }
@@ -216,11 +214,11 @@ int routeUpdateHandler(snp_pkt_t pkt) {
   while(dv != NULL) {
     if(dv->nodeID == myNodeId) {
       for(i = 0; i < nodeNum; i++) {
-        int newCost = dvtable_getcost(dv, myNodeId, dv.dvEntry[i].nodeID) 
-          + dvtable_getcost(dv, dv.dvEntry[i].nodeID, pkt->dest_nodeID);
-        if(dv.dvEntry[i].cost > newCost) {
-          dvtable_setcost(dv, myNodeId, pkt->dest_nodeID);
-          routingtable_setnextnode(routingtable, pkt->dest_nodeID, dv.dvEntry[i].nodeID);
+        int newCost = dvtable_getcost(dv, myNodeId, dv->dvEntry[i].nodeID) 
+          + dvtable_getcost(dv, dv->dvEntry[i].nodeID, pkt->header.dest_nodeID);
+        if(dv->dvEntry[i].cost > newCost) {
+          dvtable_setcost(dv, myNodeId, pkt->header.dest_nodeID, newCost);
+          routingtable_setnextnode(routingtable, pkt->header.dest_nodeID, dv->dvEntry[i].nodeID);
         }
       }
       break;
@@ -248,9 +246,8 @@ void waitTransport() {
 	seg_t* seg = (seg_t*)malloc(sizeof(seg_t));
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* destNode = (int*)malloc(sizeof(int));
-	int srvconn = server_socket_setup(NETWORK_PORT), i;
-	int nodeNum = topology_getNbrNum(), myNodeId = topology_getMyNodeID();
-	int* nodeIdArray = topology_getNbrArray();
+	int srvconn = server_socket_setup(NETWORK_PORT), network_conn;
+	int myNodeId = topology_getMyNodeID();
 	struct sockaddr_in client_addr;
 	socklen_t length = sizeof(client_addr);
 	
@@ -261,18 +258,54 @@ void waitTransport() {
 		    , __FILE__, __func__, __LINE__); 
 		    exit(1);
     }
-		while (getsegToSend(seg, destNode, network_conn) < 0) {
+		while (getsegToSend(network_conn, destNode, seg) < 0) {
 		  pkt->header.src_nodeID = myNodeId;
-		  pkt->header.dest_nodeID = destNode;
+		  pkt->header.dest_nodeID = *destNode;
 		  pkt->header.length = sizeof(seg_t);
 		  pkt->header.type = SNP;
 		  memcpy(pkt->data, seg, pkt->header.length);
 		  pthread_mutex_lock(routingtable_mutex);
-		  routingtable_getnextnode(routingtable, destNode);
+		  routingtable_getnextnode(routingtable, *destNode);
 		  pthread_mutex_unlock(routingtable_mutex);
-			overlay_sendpkt(destNode, pkt, overlay_conn);
+			overlay_sendpkt(*destNode, pkt, overlay_conn);
 		}
 	}
+	free(seg);
+	free(destNode);
+}
+
+int server_socket_setup(int port) {
+	// build server Socket
+	int server_socket = socket(PF_INET, SOCK_STREAM, 0);
+	if (server_socket < 0) {
+		printf("Socket create failed.\n");
+		return EXIT_FAILURE;
+	} else {
+		int opt = 1;
+		setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	}
+
+	// set server configuration
+	struct sockaddr_in server_addr;
+	bzero(&server_addr, sizeof(server_addr));
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+	server_addr.sin_port = htons(port);
+
+	// bind the port
+	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof(server_addr))) {
+		printf("Bind port %d failed.\n", port);
+		return -1;
+	}
+
+	// listening
+	if (listen(server_socket, LISTEN_QUEUE_LENGTH)) {
+		printf("Server Listen Failed!");
+		return EXIT_FAILURE;
+	}
+
+	return server_socket;
 }
 
 int main(int argc, char *argv[]) {

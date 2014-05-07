@@ -5,6 +5,11 @@
 //Date: May 03, 2010
 
 #include "neighbortable.h"
+#include "../topology/topology.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 
 //This function first creates a neighbor table dynamically. It then parses the topology/topology.dat file and fill the nodeID and nodeIP fields in all the entries, initialize conn field as -1 .
 //return the created neighbor table

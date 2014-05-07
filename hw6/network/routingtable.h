@@ -10,6 +10,8 @@
 #ifndef ROUTINGTABLE_H
 #define ROUTINGTABLE_H
 
+#define MAX_ROUTINGTABLE_ENTRIES 256
+
 //routingtable_entry_t is the routing entry contained in the routing table.
 typedef struct routingtable_entry {
 	int destNodeID;		//destination node ID
@@ -62,9 +64,9 @@ int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID);
 //This function prints out the contents of the routing table
 void routingtable_print(routingtable_t* routingtable);
 
-// Get routingtable_entry
+// Get routingtable_entry_t
 // If exit, return this entry
 // If not, return the last entry in the list or NULL (if head is NULL) 
-routingtable_entry* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID);
+routingtable_entry_t* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID);
 
 #endif

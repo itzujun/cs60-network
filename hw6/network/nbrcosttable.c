@@ -17,10 +17,10 @@
 //The neighbors' node IDs and direct link costs are retrieved from topology.dat file. 
 nbr_cost_entry_t* nbrcosttable_create()
 {
-  int nbrNum = topology_getNbrNum(), i, myNodeId = topology_getMyNodeID(), cost;
+  int nbrNum = topology_getNbrNum(), i, myNodeId = topology_getMyNodeID();
   int* nodeIdArray = topology_getNbrArray();
   
-  nbr_cost_entry_t* nct = (nbr_cost_entry_t*)malloc(nbrNum 8 sizeof(nbr_cost_entry_t);
+  nbr_cost_entry_t* nct = (nbr_cost_entry_t*)malloc(nbrNum * sizeof(nbr_cost_entry_t));
   if(nodeIdArray == NULL) {
    fprintf(stderr, "err in file %s func %s line %d: topology_getNodeArray err.\n"
     , __FILE__, __func__, __LINE__); 
@@ -40,7 +40,7 @@ nbr_cost_entry_t* nbrcosttable_create()
 //It frees all the dynamically allocated memory for the neighbor cost table.
 void nbrcosttable_destroy(nbr_cost_entry_t* nct)
 {
-  if(nt != NULL) {
+  if(nct != NULL) {
     free(nct);
     nct = NULL;
     return;
@@ -60,8 +60,8 @@ unsigned int nbrcosttable_getcost(nbr_cost_entry_t* nct, int nodeID)
 //This function prints out the contents of a neighbor cost table.
 void nbrcosttable_print(nbr_cost_entry_t* nct)
 {
-  if(nt != NULL) {
-    int nbrNum = topology_getNbrNum(), i, myNodeId = topology_getMyNodeID(), cost;
+  if(nct != NULL) {
+    int nbrNum = topology_getNbrNum(), i, myNodeId = topology_getMyNodeID();
     printf("%s:\n", __func__);
     for(i = 0; i < nbrNum; i++) {
       printf("%d -> %d : %d\n", myNodeId, nct[i].nodeID, nct[i].cost);
