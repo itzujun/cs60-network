@@ -397,7 +397,7 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
   }
 }
 
-return UINT_MAX;
+return INFINITE_COST;
 }
 
 char* getHostnameFromNodeId(int nid) {

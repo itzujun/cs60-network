@@ -124,12 +124,14 @@ void* routeupdate_daemon(void* arg) {
 
 int* getRouteInfo(int nodeNum) {
   int myNodeId = topology_getMyNodeID();
+  pthread_mutex_lock(dv_mutex);
   while(dv != NULL) {
     if(dv->nodeID == myNodeId) {
       return dv.dvEntry[i];
     }
     dv++;
   }
+  pthread_mutex_unlock(dv_mutex);
   fprintf(stderr, "err in file %s func %s line %d: cannot not get entries.\n"
     , __FILE__, __func__, __LINE__); 
   return NULL;
@@ -265,8 +267,11 @@ void waitTransport() {
 		  pkt->header.length = sizeof(seg_t);
 		  pkt->header.type = SNP;
 		  memcpy(pkt->data, seg, pkt->header.length);
+		  pthread_mutex_lock(routingtable_mutex);
+		  routingtable_getnextnode(routingtable, destNode);
+		  pthread_mutex_unlock(routingtable_mutex);
 		  //@TODO: get from routing table
-			overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
+			overlay_sendpkt(destNode, pkt, overlay_conn);
 		}
 	}
 }

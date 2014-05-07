@@ -29,7 +29,7 @@ nbr_cost_entry_t* nbrcosttable_create()
   
   for(i = 0; i < nbrNum; i++) {
     nct[i].nodeID = nodeIdArray[i];
-    nct[i].cost = topology_getCost(myNodeId, nodeIdArray[i]); // @TODO: modify the getcost inifite value
+    nct[i].cost = topology_getCost(myNodeId, nodeIdArray[i]); 
   }
   
   free(nodeIdArray);
