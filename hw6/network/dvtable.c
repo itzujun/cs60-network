@@ -32,7 +32,7 @@ dv_t* dvtable_create()
       dvTable[i].dvEntry[j].nodeID = nodeIdArray[j];
       if(myNodeId == dvTable[i].nodeID) // if self, then add nbr cost
         dvTable[i].dvEntry[j].cost = topology_getCost(dvTable[i].nodeID, nodeIdArray[j]);
-      else  // if not self entry, then set inifite
+      else  // if not self entry, then set infinite
         dvTable[i].dvEntry[j].cost = INFINITE_COST;
     }
   }
@@ -78,6 +78,8 @@ int dvtable_setcost(dv_t* dvtable,int fromNodeID,int toNodeID, unsigned int cost
       }
     }
   }
+  fprintf(stderr, "err in file %s func %s line %d: node pair not found.\n"
+    , __FILE__, __func__, __LINE__); 
   return -1;
 }
 

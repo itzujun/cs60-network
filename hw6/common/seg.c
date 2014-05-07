@@ -13,15 +13,17 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
   bufstart[1] = '&';
   bufend[0] = '!';
   bufend[1] = '#';
-
-    // printf("<func: %s> send head\n", __func__);
-    if (send(connection, bufstart, 2, 0) < 0) {
-        return -1;
-    }
-    // printf("<func: %s> send body\n", __func__);
-    unsigned short chksum = checksum(segPtr);
-    segPtr->header.checksum = chksum;
-  if(send(connection,segPtr,sizeof(seg_t),0)<0) {
+  segPtr->header.checksum = checksum(segPtr);
+  sendseg_arg_t* snpSeg = (sendseg_arg_t*)malloc(sizeof(sendseg_arg_t));
+  snpSeg->nodeID = dest_nodeID;
+  memcpy(&snpSeg->seg, segPtr, sizeof(seg_t));
+  
+  // printf("<func: %s> send head\n", __func__);
+  if (send(connection, bufstart, 2, 0) < 0) {
+      return -1;
+  }
+  // printf("<func: %s> send body\n", __func__);
+  if(send(connection, snpSeg, sizeof(seg_t), 0)<0) {
         // printf("<func: %s> send body fail\n", __func__);
     return -1;
   }
@@ -38,7 +40,69 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully received, otherwise return -1.
 int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
 {
-  return 0;
+    char buf[sizeof(seg_t)+2]; 
+    char c;
+    int idx = 0;
+    // state can be 0,1,2,3; 
+    // 0 starting point 
+    // 1 '!' received
+    // 2 '&' received, start receiving segment
+    // 3 '!' received,
+    // 4 '#' received, finish receiving segment 
+    int state = 0; 
+    while(recv(network_conn,&c,1,0)>0) {
+        if (state == 0) {
+            if(c=='!')
+                state = 1;
+        }
+        else if(state == 1) {
+            if(c=='&') 
+                state = 2;
+            else
+                state = 0;
+        }
+        else if(state == 2) {
+            if(c=='!') {
+                buf[idx]=c;
+                idx++;
+                state = 3;
+            }
+            else {
+                buf[idx]=c;
+                idx++;
+            }
+        }
+        else if(state == 3) {
+            if(c=='#') {
+                buf[idx]=c;
+                idx++;
+                state = 0;
+                idx = 0;
+                // puts("hadnle pkt err");
+                if(seglost(segPtr)>0) {
+                    printf("seg lost!!!\n");
+                    continue;
+                }
+                if(checkchecksum((seg_t*)buf) == -1){
+                    puts("checksum err");
+                    continue;
+                }
+                memcpy(segPtr, &((seg_t*)buf)->seg, sizeof(seg_t));
+                memcpy(src_nodeID, &((seg_t*)buf)->nodeID, sizeof(int));
+                return 1;
+            }
+            else if(c=='!') {
+                buf[idx]=c;
+                idx++;
+            }
+            else {
+                buf[idx]=c;
+                idx++;
+                state = 2;
+            }
+        }
+    }
+    return -1;
 }
 
 //SNP process uses this function to receive a sendseg_arg_t structure which contains a segment and its destination node ID from the SRT process.
@@ -46,7 +110,60 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully received, otherwise return -1.
 int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
 {
-  return 0;
+    char buf[sizeof(sendpkt_arg_t)+2]; 
+    char c;
+    int idx = 0;
+    // state can be 0,1,2,3; 
+    // 0 starting point 
+    // 1 '!' received
+    // 2 '&' received, start receiving segment
+    // 3 '!' received,
+    // 4 '#' received, finish receiving segment 
+    int state = 0; 
+    while(recv(tran_conn,&c,1,0)>0) {
+        if (state == 0) {
+            if(c=='!')
+                state = 1;
+        }
+        else if(state == 1) {
+            if(c=='&') 
+                state = 2;
+            else
+                state = 0;
+        }
+        else if(state == 2) {
+            if(c=='!') {
+                buf[idx]=c;
+                idx++;
+                state = 3;
+            }
+            else {
+                buf[idx]=c;
+                idx++;
+            }
+        }
+        else if(state == 3) {
+            if(c=='#') {
+                buf[idx]=c;
+                idx++;
+                state = 0;
+                idx = 0;
+                memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
+                memcpy(dest_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
+                return 1;
+            }
+            else if(c=='!') {
+                buf[idx]=c;
+                idx++;
+            }
+            else {
+                buf[idx]=c;
+                idx++;
+                state = 2;
+            }
+        }
+    }
+    return -1;
 }
 
 //SNP process uses this function to send a sendseg_arg_t structure which contains a segment and its src node ID to the SRT process.
@@ -54,7 +171,27 @@ int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully sent, otherwise return -1.
 int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
 {
-  return 0;
+  char bufstart[2];
+  char bufend[2];
+  bufstart[0] = '!';
+  bufstart[1] = '&';
+  bufend[0] = '!';
+  bufend[1] = '#';
+  segPtr->header.checksum = checksum(segPtr);
+  sendseg_arg_t* snpSeg = (sendseg_arg_t*)malloc(sizeof(sendseg_arg_t));
+  snpSeg->nodeID = src_nodeID;
+  memcpy(&snpSeg->seg, segPtr, sizeof(seg_t));
+  
+  if (send(tran_conn, bufstart, 2, 0) < 0) {
+    return -1;
+  }
+  if(send(tran_conn, snpSeg, sizeof(sendpkt_arg_t), 0)<0) {
+    return -1;
+  }
+  if(send(tran_conn, bufend, 2, 0)<0) {
+    return -1;
+  }
+  return 1;
 }
 
 // for seglost(seg_t* segment):
@@ -65,7 +202,27 @@ int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
 // We flip  a random bit in the segment to create invalid checksum
 int seglost(seg_t* segPtr)
 {
-  return 0;
+	int random = rand()%100;
+	if(random<PKT_LOSS_RATE*100) {
+		//50% probability of losing a segment
+		if(rand()%2==0) {
+			printf("seg lost!!!\n");
+          return 1;
+      }
+		//50% chance of invalid checksum
+      else {
+			//get data length
+         int len = sizeof(srt_hdr_t)+segPtr->header.length;
+			//get a random bit that will be flipped
+         int errorbit = rand()%(len*8);
+			//flip the bit
+         char* temp = (char*)segPtr;
+         temp = temp + errorbit/8;
+         *temp = *temp^(1<<(errorbit%8));
+         return 0;
+     }
+ }
+ return 0;
 }
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -77,7 +234,31 @@ int seglost(seg_t* segPtr)
 //Use 1s complement for checksum calculation.
 unsigned short checksum(seg_t* segment)
 {
-  return 0;
+    unsigned short* dataBuf = (unsigned short*)segment;
+    // set checksum as long type in order to caputre the carries
+    unsigned short chksum = 0;
+    int len = sizeof(segment->header);
+    if(segment->header.type == DATA) {
+        len += segment->header.length;
+    }
+
+    // compute checksum
+    while (len > 1) {
+        chksum += *dataBuf;
+        dataBuf++;
+        len -= 2;
+    }
+    if(len) {
+        /// if there is one more left, force to grab a 16 bit data
+        chksum += *(unsigned short*)dataBuf;
+    }
+
+    // handle the carries
+    while (chksum >> 16)
+        chksum = (chksum >> 16) + (chksum & 0xffff); 
+
+    // printf("%s: the checksum is %d!\n", __func__, (unsigned short)(~chksum));
+    return (unsigned short)(~chksum);
 }
 
 //Check the checksum in the segment,
@@ -85,5 +266,8 @@ unsigned short checksum(seg_t* segment)
 //return -1 if the checksum is invalid
 int checkchecksum(seg_t* segment)
 {
-  return 0;
+    unsigned short chksum = checksum(segment);
+    // printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
+    // printf("%s: the checkchecksum is %d!\n", __func__, chksum);
+    return (chksum == 0) ? 1 : -1;
 }

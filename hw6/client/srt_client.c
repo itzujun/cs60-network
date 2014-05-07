@@ -34,7 +34,7 @@ int network_conn;
 //get the sock tcb indexed by sockfd
 //return 0 if no tcb found
 client_tcb_t* tcbtable_gettcb(int sockfd) {
-       	if(tcbtable[sockfd]!=NULL)
+  if(tcbtable[sockfd]!=NULL)
 		return tcbtable[sockfd];
 	else
 		return 0;

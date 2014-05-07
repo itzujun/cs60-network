@@ -77,9 +77,9 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
       entryPtr = entryPtr->next;
       entryPtr->next = NULL;
     }
-    // no matter wheterh we find it or not, we need to upadte the nextNodeID 
+    // no matter whether we find it or not, we need to upadte the nextNodeID 
     entryPtr->destNodeID = destNodeID;
-    entryPtr->nextNodeID = destNodeID;
+    entryPtr->nextNodeID = nextNodeID;
     return;
   }
   fprintf(stderr, "err in file %s func %s line %d: routingtable is null.\n"
@@ -117,7 +117,7 @@ int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID)
   }
   fprintf(stderr, "err in file %s func %s line %d: routingtable is null.\n"
     , __FILE__, __func__, __LINE__); 
-  return;
+  return -1;
 }
 
 //This function prints out the contents of the routing table

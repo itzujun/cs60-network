@@ -34,4 +34,5 @@ void network_stop();
 void waitTranport();
 
 struct sockaddr_in config_server(int port);
+char* getRouteInfo(int nodeNum);
 #endif

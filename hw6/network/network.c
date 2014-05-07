@@ -96,14 +96,20 @@ struct sockaddr_in config_server(int port) {
 //and use overlay_sendpkt() to send the packet out using BROADCAST_NODEID address.
 void* routeupdate_daemon(void* arg) {
 	//put your code here
-	int nodeNum = topology_getNbrNum(), i;
+	int nbrNum = topology_getNbrNum(), nodeNum = topology_getNodeNUm(), i;
 	int* nodeIdArray = topology_getNodeArray();
+	int* routeInfo;
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 
 	pkt->header.src_nodeID = topology_getMyNodeID();
 	pkt->header.dest_nodeID = BROADCAST_NODEID;
 	pkt->header.length = 0;
 	pkt->header.type = ROUTE_UPDATE;
+	memcpy(dataPtr, &nodeNum, sizeof(int));
+	routeInfo = getRouteInfo(nodeNum);
+  memcpy((pkt->data + sizeof(int) / sizeof(char))
+    , routeInfo, nodeNum * (2 * sizeof(int));
+
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
 	  // printf("%s: updating routeinfo\n", __func__);
@@ -111,8 +117,22 @@ void* routeupdate_daemon(void* arg) {
 		sleep(ROUTEUPDATE_INTERVAL);
 	}
 	printf("%s: OFF\n", __func__);
+	free(routeInfo);
 	free(pkt);
 	return 0;
+}
+
+int* getRouteInfo(int nodeNum) {
+  int myNodeId = topology_getMyNodeID();
+  while(dv != NULL) {
+    if(dv->nodeID == myNodeId) {
+      return dv.dvEntry[i];
+    }
+    dv++;
+  }
+  fprintf(stderr, "err in file %s func %s line %d: cannot not get entries.\n"
+    , __FILE__, __func__, __LINE__); 
+  return NULL;
 }
 
 //This thread handles incoming packets from the ON process.
@@ -121,16 +141,93 @@ void* routeupdate_daemon(void* arg) {
 //If the packet is a SNP packet and the destination node is not this node, forward the packet to the next hop according to the routing table.
 //If this packet is an Route Update packet, update the distance vector table and the routing table. 
 void* pkthandler(void* arg) {
+  int myNodeId = topology_getMyNodeID();
 	snp_pkt_t pkt;
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
 	  overlay_recvpkt(&pkt, overlay_conn);
+	  if(pkt->header.type == ROUTE_UPDATE) {
+      if(routeUpdateHandler(pkt) != 1) {
+	      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+		      , __FILE__, __func__, __LINE__); 
+      }
+	  } else if (pkt->header.type == ROUTE_UPDATE) {
+	    if(pkt->heade.dest_nodeID == myNodeId) {
+	      if(forwardsegToSRT(transport_conn, pkt->heade.dest_nodeID, pkt->data) != 1) {
+		      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+			      , __FILE__, __func__, __LINE__); 
+	      }
+	    } else {
+	      if(forwardHandler(pkt) != 1) {
+		      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+			      , __FILE__, __func__, __LINE__); 
+	      }
+	    }
+	  } else {
+		  fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
+			  , __FILE__, __func__, __LINE__); 
+	  }
 		printf("Routing: received a packet from neighbor %d\n",pkt.header.src_nodeID);
 	}
 	printf("%s: OFF\n", __func__);
 	close(overlay_conn);
 	overlay_conn = -1;
 	pthread_exit(NULL);
+}
+
+int forwardHandler(snp_pkt_t pkt) {
+  int nextNodeId = routingtable_getnextnode(pkt->heade.dest_nodeID);
+  if(nextNodeId == -1) {
+    fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId err.\n"
+      , __FILE__, __func__, __LINE__); 
+    return -1;
+  } else {
+    overlay_sendpkt(nextNodeId, pkt, overlay_conn);
+    return 1;
+  }
+}
+
+int routeUpdateHandler(snp_pkt_t pkt) {
+  int myNodeId = topology_getMyNodeID(), nodeID, cost, i, j;
+  int* routeInfo = pkt->data;
+  int nodeNum = *(routeInfo), nbrNum = topology_getNbrNum();
+  
+  // step 1, update that particular entry
+  pthread_mutex_lock(dv_mutex);
+  while(dv != NULL) {
+    if(dv->nodeID == pkt->src_nodeID) {
+      for(i = 0; i < nodeNum; i++) {
+        // when i = 0, it skip the nodeNum and first id
+        // when i > 0, it skip this cost the next node id
+        dv.dvEntry[i].cost = *(routeInfo + 2 + 2 * i);
+        memcpy(routeInfo++, &dv.dvEntry[i].nodeID, sizeof(int));
+        memcpy(routeInfo++, &, sizeof(int));
+      }
+      break;
+    }
+    dv++;
+  }
+  pthread_mutex_unlock(dv_mutex);
+  
+  // step 2, update my own entry and update routing table
+  pthread_mutex_lock(routingtable_mutex);
+  while(dv != NULL) {
+    if(dv->nodeID == myNodeId) {
+      for(i = 0; i < nodeNum; i++) {
+        int newCost = dvtable_getcost(dv, myNodeId, dv.dvEntry[i].nodeID) 
+          + dvtable_getcost(dv, dv.dvEntry[i].nodeID, pkt->dest_nodeID);
+        if(dv.dvEntry[i].cost > newCost) {
+          dvtable_setcost(dv, myNodeId, pkt->dest_nodeID);
+          routingtable_setnextnode(routingtable, pkt->dest_nodeID, dv.dvEntry[i].nodeID);
+        }
+      }
+      break;
+    }
+    dv++;
+  }
+  pthread_mutex_unlock(routingtable_mutex);
+  
+  return 1;
 }
 
 //This function stops the SNP process. 
@@ -146,8 +243,31 @@ void network_stop() {
 //After the local SRT process is connected, this function keeps receiving sendseg_arg_ts which contains the segments and their destination node addresses from the SRT process. The received segments are then encapsulated into packets (one segment in one packet), and sent to the next hop using overlay_sendpkt. The next hop is retrieved from routing table.
 //When a local SRT process is disconnected, this function waits for the next SRT process to connect.
 void waitTransport() {
-	//put your code here
-  return;
+	seg_t* seg = (seg_t*)malloc(sizeof(seg_t));
+	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
+	int* destNode = (int*)malloc(sizeof(int));
+	int srvconn = server_socket_setup(NETWORK_PORT), i;
+	int nodeNum = topology_getNbrNum(), myNodeId = topology_getMyNodeID();
+	int* nodeIdArray = topology_getNbrArray();
+	struct sockaddr_in client_addr;
+	socklen_t length = sizeof(client_addr);
+	
+	while (!EXIT_SIG) {
+    network_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
+    if (network_conn < 0) {
+	    fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
+		    , __FILE__, __func__, __LINE__); 
+		    exit(1);
+    }
+		while (getsegToSend(seg, destNode, network_conn) < 0) {
+		  pkt->header.src_nodeID = myNodeId;
+		  pkt->header.dest_nodeID = destNode;
+		  pkt->header.length = sizeof(seg_t);
+		  pkt->header.type = SNP;
+		  memcpy(pkt->data, seg, pkt->header.length);
+			overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
+		}
+	}
 }
 
 int main(int argc, char *argv[]) {
