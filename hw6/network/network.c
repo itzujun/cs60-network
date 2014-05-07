@@ -265,6 +265,7 @@ void waitTransport() {
 		  pkt->header.length = sizeof(seg_t);
 		  pkt->header.type = SNP;
 		  memcpy(pkt->data, seg, pkt->header.length);
+		  //@TODO: get from routing table
 			overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
 		}
 	}
