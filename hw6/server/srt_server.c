@@ -269,7 +269,7 @@ void* seghandler(void* arg) {
 				//waiting for SYN segment from client
 				if(segBuf.header.type==SYN) {
 					// SYN received
-					printf("SERVER: SYN RECEIVED\n");
+					printf("SERVER: SYN RECEIVED from nid %d\n", src_nodeID);
 					//update servertcb and send SYNACK back
 					my_servertcb->client_nodeID = src_nodeID;
 					my_servertcb->client_portNum = segBuf.header.src_port;

@@ -120,6 +120,9 @@ void* routeupdate_daemon(void* arg) {
 		//printf("%s: sent\n", __func__);
 		sleep(ROUTEUPDATE_INTERVAL);
 		//printf("%s: wake\n", __func__);
+		if(routingInited == 1){
+		  sleep(60);
+		}
 	}
 	printf("%s: OFF\n", __func__);
 	free(routeInfo);
@@ -161,7 +164,7 @@ void* pkthandler(void* arg) {
 //	    } else if (pkt->header.type == SNP) {
 	    } else if (1 || pkt->header.type == SNP) {
 	      if(pkt->header.dest_nodeID == myNodeId) {
-	        if(forwardsegToSRT(transport_conn, pkt->header.dest_nodeID, (seg_t*)pkt->data) != 1) {
+	        if(forwardsegToSRT(transport_conn, pkt->header.src_nodeID, (seg_t*)pkt->data) != 1) {
 		        fprintf(stderr, "err in file %s func %s line %d: forwardsegToSRT err.\n"
 			        , __FILE__, __func__, __LINE__); 
 	        } else {
@@ -384,6 +387,7 @@ int main(int argc, char *argv[]) {
 	sleep(NETWORK_WAITTIME);
 	printf("%s: wake!!!!!!!!!!\n", __func__);
 	routingtable_print(routingtable);
+	routingInited = 1;
 
 	//wait connection from SRT process
 	printf("waiting for connection from SRT process\n");

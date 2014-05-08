@@ -228,6 +228,7 @@ void waitNetwork() {
 			//fprintf(stderr, "err in file %s func %s line %d: recv err.\n"
 			//	, __FILE__, __func__, __LINE__); 
 		} else if (*nextNode == BROADCAST_NODEID) {
+		  printf("%s: get a packet type %d.\n", __func__, pkt->header.type);
 			for(i = 0; i < nodeNum; i++) {
 				sendToNeighbor(pkt, nodeIdArray[i]);
 			}
