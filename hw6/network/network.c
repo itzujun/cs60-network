@@ -120,9 +120,9 @@ void* routeupdate_daemon(void* arg) {
 		//printf("%s: sent\n", __func__);
 		sleep(ROUTEUPDATE_INTERVAL);
 		//printf("%s: wake\n", __func__);
-		if(routingInited == 1){
-		  sleep(60);
-		}
+		//if(routingInited == 1){
+		//  sleep(60);
+		//}
 	}
 	printf("%s: OFF\n", __func__);
 	free(routeInfo);
@@ -162,7 +162,7 @@ void* pkthandler(void* arg) {
 		        , __FILE__, __func__, __LINE__); 
         }
 //	    } else if (pkt->header.type == SNP) {
-	    } else if (1 || pkt->header.type == SNP) {
+	    } else if (pkt->header.type == SNP) {
 	      if(pkt->header.dest_nodeID == myNodeId) {
 	        if(forwardsegToSRT(transport_conn, pkt->header.src_nodeID, (seg_t*)pkt->data) != 1) {
 		        fprintf(stderr, "err in file %s func %s line %d: forwardsegToSRT err.\n"
@@ -177,7 +177,7 @@ void* pkthandler(void* arg) {
 	        }
 	      }
 	    } else {
-		    fprintf(stderr, "err in file %s func %s line %d: unkown pkt type %d.\n"
+		    fprintf(stderr, "warning in file %s func %s line %d: unkown pkt type %d, discard.\n"
 			    , __FILE__, __func__, __LINE__, pkt->header.type);
 	    }
 		  //printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
@@ -196,11 +196,12 @@ int forwardHandler(snp_pkt_t* pkt) {
   //printf("%s: here\n", __func__);
   int nextNodeId = routingtable_getnextnode(routingtable, pkt->header.dest_nodeID);
   if(nextNodeId == -1) {
-    fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId %d err.\n"
-      , __FILE__, __func__, __LINE__, pkt->header.dest_nodeID); 
+    fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId %d for dest %d.\n"
+      , __FILE__, __func__, __LINE__, pkt->header.dest_nodeID, pkt->header.dest_nodeID); 
     return -1;
   } else {
     overlay_sendpkt(nextNodeId, pkt, overlay_conn);
+    printf("%s: pkt forwarded to nbr\n", __func__);
     return 1;
   }
 }

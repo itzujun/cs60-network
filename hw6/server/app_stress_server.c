@@ -71,6 +71,7 @@ int main() {
 		exit(1);
 	}
 	//listen and accept connection from a srt client 
+	printf("wait for client to connect\n");
 	srt_server_accept(sockfd);
 
 	//receive the file size first 
@@ -82,7 +83,7 @@ int main() {
 
 	//save the received file data in receivedtext.txt
 	FILE* f;
-	f = fopen("receivedtext.txt","a");
+	f = fopen("server/receivedtext.txt","a");
 	fwrite(buf,fileLen,1,f);
 	fclose(f);
 	free(buf);

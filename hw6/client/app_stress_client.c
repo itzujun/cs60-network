@@ -97,8 +97,8 @@ int main() {
 	//get sampletext.txt file length,
 	//create a buffer and read the file data in
 	FILE *f;
-	f = fopen("send_this_text.txt","r");
-	assert(f!=NULL);
+	f = fopen("client/send_this_text.txt","r");
+	assert(f != NULL);
 	fseek(f,0,SEEK_END);
 	int fileLen = ftell(f);
 	fseek(f,0,SEEK_SET);
