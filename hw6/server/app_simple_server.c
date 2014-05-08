@@ -73,6 +73,7 @@ int main() {
 		exit(1);
 	}
 	//listen and accept connection from a srt client 
+	printf("wait for client 1\n");
 	srt_server_accept(sockfd);
 
 	//create a srt server sock at port SVRPORT2
@@ -82,6 +83,7 @@ int main() {
 		exit(1);
 	}
 	//listen and accept connection from a srt client 
+	printf("wait for client 2\n");
 	srt_server_accept(sockfd2);
 
 

@@ -186,7 +186,7 @@ void* listen_to_neighbor(void* arg) {
 			printf("%s-%d: snp process is down on the other side.\n", __func__, *((int*)arg));
 			keeplistenning = 0;
 		} else {
-		  printf("%s-%d: get a packet.\n", __func__, *((int*)arg));
+		  printf("%s-%d: get a packet type %d.\n", __func__, *((int*)arg), pkt->header.type);
 			if(network_conn != -1 && keeplistenning) {
 				forwardpktToSNP(pkt, network_conn);
 			} else {

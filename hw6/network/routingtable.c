@@ -20,7 +20,7 @@
 //
 int makehash(int node)
 {
-  return node % MAX_ROUTINGTABLE_ENTRIES;
+  return node % MAX_ROUTINGTABLE_SLOTS;
 }
 
 //This function creates a routing table dynamically.
@@ -29,11 +29,17 @@ int makehash(int node)
 //The dynamically created routing table structure is returned.
 routingtable_t* routingtable_create()
 {
-  int i;
+  int i, nbrNum = topology_getNbrNum(), myNodeId = topology_getMyNodeID();
+  int* nbrIdArray = topology_getNbrArrayAndSelf();
   routingtable_t* routingtable = (routingtable_t*)malloc(sizeof(routingtable_t));
   for(i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
     routingtable->hash[i] = NULL;
   }
+  
+  for(i = 0; i < nbrNum + 1; i++) {
+    routingtable_setnextnode(routingtable, nbrIdArray[i], nbrIdArray[i]);
+  }
+  free(nbrIdArray);
   return routingtable;
 }
 
@@ -70,18 +76,19 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
   if(routingtable != NULL) {
     routingtable_entry_t* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
     if(entryPtr == NULL) {  // not found and the list is empty
-      entryPtr = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
-      // printf("%s: new route on slot [%d]\n", __func__, makehash(destNodeID));
-      entryPtr->next = NULL;
+      routingtable->hash[makehash(destNodeID)] = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
+      //printf("%s: new route on slot [%d]\n", __func__, makehash(destNodeID));
+      routingtable->hash[makehash(destNodeID)]->next = NULL;
     } else if(entryPtr->destNodeID != destNodeID) { // not found though the list is not empty
       entryPtr->next = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
-      // printf("%s: new overlap route on slot [%d]\n", __func__, makehash(destNodeID));
+      //printf("%s: new overlap route on slot [%d]\n", __func__, makehash(destNodeID));
       entryPtr = entryPtr->next;
       entryPtr->next = NULL;
     }
     // no matter whether we find it or not, we need to upadte the nextNodeID 
-    entryPtr->destNodeID = destNodeID;
-    entryPtr->nextNodeID = nextNodeID;
+    routingtable->hash[makehash(destNodeID)]->destNodeID = destNodeID;
+    routingtable->hash[makehash(destNodeID)]->nextNodeID = nextNodeID;
+    //printf("%s: mem addr on slot [%d] is %d\n", __func__, makehash(destNodeID), entryPtr);
     return;
   }
   fprintf(stderr, "err in file %s func %s line %d: routingtable is null.\n"
@@ -93,7 +100,7 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
 // If exit, return this entry
 // If not, return the last entry in the list or NULL (if head is NULL) 
 routingtable_entry_t* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID) {
-  routingtable_entry_t* entryPtr = (routingtable->hash + makehash(destNodeID));
+  routingtable_entry_t* entryPtr = routingtable->hash[makehash(destNodeID)];
   while(entryPtr != NULL 
     && entryPtr->next != NULL 
     && entryPtr->destNodeID != destNodeID) {
@@ -129,9 +136,10 @@ void routingtable_print(routingtable_t* routingtable)
     int i, isEmpty = 1;
     printf("%s:\n", __func__);
     for (i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
-      routingtable_entry_t* entryPtr = (routingtable->hash + i);
+      routingtable_entry_t* entryPtr = routingtable->hash[i];
+      //printf("%s: mem addr on slot [%d] is %d\n", __func__, i, entryPtr);
       while(entryPtr != NULL) {
-        printf("| slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+        printf("--|slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
         isEmpty = 0;
         entryPtr = entryPtr->next;
       }

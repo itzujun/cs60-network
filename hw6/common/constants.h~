@@ -54,7 +54,7 @@
 
 //this is port number that opened by overlay process. network layer process should connect to the overlay process on this port  
 //you should change this to a random value to avoid conflictions with other students
-#define OVERLAY_PORT 3564
+#define OVERLAY_PORT 3569
 
 //max packet data length
 #define MAX_PKT_LEN 1488 
@@ -68,7 +68,7 @@
 #define MAX_NODE_NUM 256
 
 //max routing table slots 
-#define MAX_ROUTINGTABLE_SLOTS 256
+#define MAX_ROUTINGTABLE_SLOTS 10
 
 //infinite link cost value
 //if two nodes are unconnected, they will have link cost INFINITE_COST

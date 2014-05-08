@@ -182,7 +182,7 @@ int srt_client_connect(int sockfd, int nodeID, unsigned int server_port) {
 			}	
 			//state transition
 			clienttcb->state = CLOSED;
-			return -1;		
+			return -1;
 		case SYNSENT:
 			return -1;
 		case CONNECTED:

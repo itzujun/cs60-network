@@ -31,7 +31,7 @@
 #include "routingtable.h"
 
 //network layer waits this time for establishing the routing paths 
-#define NETWORK_WAITTIME 30
+#define NETWORK_WAITTIME 15
 
 /**************************************************************/
 //delare global variables
@@ -155,14 +155,17 @@ void* pkthandler(void* arg) {
       // printf("%s: get a pkt\n", __func__);
 	    if(pkt->header.type == ROUTE_UPDATE) {
         if(routeUpdateHandler(pkt) != 1) {
-	        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+	        fprintf(stderr, "err in file %s func %s line %d: routeUpdateHandler err.\n"
 		        , __FILE__, __func__, __LINE__); 
         }
-	    } else if (pkt->header.type == ROUTE_UPDATE) {
+//	    } else if (pkt->header.type == SNP) {
+	    } else if (1 || pkt->header.type == SNP) {
 	      if(pkt->header.dest_nodeID == myNodeId) {
 	        if(forwardsegToSRT(transport_conn, pkt->header.dest_nodeID, (seg_t*)pkt->data) != 1) {
-		        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+		        fprintf(stderr, "err in file %s func %s line %d: forwardsegToSRT err.\n"
 			        , __FILE__, __func__, __LINE__); 
+	        } else {
+	          printf("%s: seg forwarded to srt\n", __func__);
 	        }
 	      } else {
 	        if(forwardHandler(pkt) != 1) {
@@ -171,8 +174,8 @@ void* pkthandler(void* arg) {
 	        }
 	      }
 	    } else {
-		    fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
-			    , __FILE__, __func__, __LINE__); 
+		    fprintf(stderr, "err in file %s func %s line %d: unkown pkt type %d.\n"
+			    , __FILE__, __func__, __LINE__, pkt->header.type);
 	    }
 		  //printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
 		}
@@ -190,8 +193,8 @@ int forwardHandler(snp_pkt_t* pkt) {
   //printf("%s: here\n", __func__);
   int nextNodeId = routingtable_getnextnode(routingtable, pkt->header.dest_nodeID);
   if(nextNodeId == -1) {
-    fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId err.\n"
-      , __FILE__, __func__, __LINE__); 
+    fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId %d err.\n"
+      , __FILE__, __func__, __LINE__, pkt->header.dest_nodeID); 
     return -1;
   } else {
     overlay_sendpkt(nextNodeId, pkt, overlay_conn);
@@ -236,20 +239,21 @@ int routeUpdateHandler(snp_pkt_t* pkt) {
       for(i = 0; i < nodeNum; i++) {
         //printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
         dvEntry = dv[j].dvEntry;
-        if(dvEntry[i].nodeID != myNodeId) {
+        //if(dvEntry[i].nodeID != myNodeId) {
           int newCost = dvtable_getcost(dv, myNodeId, pkt->header.src_nodeID) 
             + dvtable_getcost(dv, pkt->header.src_nodeID, dvEntry[i].nodeID);
-          printf("%s: oldCost %d, newCost %d \n", __func__, dvEntry[i].cost, newCost);
-          if(routingInited == 0 || dvEntry[i].cost > newCost) {
-            printf("%s: routingtable update dest %d next %d:)\n", __func__, dvEntry[i].nodeID, pkt->header.src_nodeID);
+          //printf("%s: oldCost %d, newCost %d \n", __func__, dvEntry[i].cost, newCost);
+          if(dvEntry[i].cost > newCost) {
+          //if(routingInited == 0 || dvEntry[i].cost > newCost) {
+            //printf("%s: routingtable update dest %d next %d:)\n", __func__, dvEntry[i].nodeID, pkt->header.src_nodeID);
             dvtable_setcost(dv, myNodeId, pkt->header.src_nodeID, newCost);
             routingtable_setnextnode(routingtable, dvEntry[i].nodeID, pkt->header.src_nodeID);
           }
-        } else if(routingInited == 0) {
-          routingtable_setnextnode(routingtable, myNodeId, myNodeId);
-        }
+        //} else if(routingInited == 0) {
+          //routingtable_setnextnode(routingtable, myNodeId, myNodeId);
+        //}
       }
-      routingInited = 1;
+      //routingInited = 1;
       break;
     }
   }
@@ -275,19 +279,21 @@ void waitTransport() {
 	seg_t* seg = (seg_t*)malloc(sizeof(seg_t));
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* destNode = (int*)malloc(sizeof(int));
-	int srvconn = server_socket_setup(NETWORK_PORT), network_conn;
+	int srvconn = server_socket_setup(NETWORK_PORT);
 	int myNodeId = topology_getMyNodeID();
 	struct sockaddr_in client_addr;
 	socklen_t length = sizeof(client_addr);
 	
 	while (!EXIT_SIG) {
-    network_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
-    if (network_conn < 0) {
+    transport_conn = accept(srvconn, (struct sockaddr*) &client_addr, &length);
+    if (transport_conn < 0) {
 	    fprintf(stderr, "err in file %s func %s line %d: accept err.\n"
 		    , __FILE__, __func__, __LINE__); 
 		    exit(1);
     }
-		while (getsegToSend(network_conn, destNode, seg) >= 0) {
+    printf("%s: waiting seg from srt\n", __func__);
+		while (getsegToSend(transport_conn, destNode, seg) >= 0) {
+		  printf("%s: get seg from srt type %d, dest %d\n", __func__, seg->header.type, *destNode);
 		  pkt->header.src_nodeID = myNodeId;
 		  pkt->header.dest_nodeID = *destNode;
 		  pkt->header.length = sizeof(seg_t);

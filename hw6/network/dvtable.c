@@ -25,11 +25,11 @@ dv_t* dvtable_create()
   int* nbrIdArray = topology_getNbrArrayAndSelf();
   dv_t* dvTable = (dv_t*)malloc((nbrNum + 1) * sizeof(dv_t));
   
-  printf("%s: nodeNum is %d\n", __func__, nodeNum);
+  //printf("%s: nodeNum is %d\n", __func__, nodeNum);
   for (i = 0; i < nbrNum + 1; i++) {
     dvTable[i].dvEntry = (dv_entry_t*)malloc(nodeNum * sizeof(dv_entry_t));
     dvTable[i].nodeID = nbrIdArray[i];
-    printf("%s: nodeID of this dvEntry is %d\n", __func__, dvTable[i].nodeID);
+    //printf("%s: nodeID of this dvEntry is %d\n", __func__, dvTable[i].nodeID);
     for (j = 0; j < nodeNum; j++) {
       dvTable[i].dvEntry[j].nodeID = nodeIdArray[j];
       if(myNodeId == dvTable[i].nodeID) // if self, then add nbr cost {
@@ -111,7 +111,7 @@ void dvtable_print(dv_t* dvTable)
     int i, j, nbrNum = topology_getNbrNum(), nodeNum = topology_getNodeNum();
     printf("%s:\n", __func__);
     for (i = 0; i < nbrNum + 1; i++) {
-      printf("| %d -> {", dvTable[i].nodeID);
+      printf("--|%d -> {", dvTable[i].nodeID);
       for (j = 0; j < nodeNum; j++) {
         printf("%d : %d, ", dvTable[i].dvEntry[j].nodeID, dvTable[i].dvEntry[j].cost);
       }

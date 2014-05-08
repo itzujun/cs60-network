@@ -68,7 +68,7 @@
 #define MAX_NODE_NUM 256
 
 //max routing table slots 
-#define MAX_ROUTINGTABLE_SLOTS 256
+#define MAX_ROUTINGTABLE_SLOTS 10
 
 //infinite link cost value
 //if two nodes are unconnected, they will have link cost INFINITE_COST
@@ -76,7 +76,7 @@
 
 //network layer process opens this port, and waits for connection from transport layer process,
 //you should change this to a random value to avoid conflictions with other students
-#define NETWORK_PORT 4022
+#define NETWORK_PORT 4023
 
 //this is the broadcasting nodeID address
 #define BROADCAST_NODEID 9999

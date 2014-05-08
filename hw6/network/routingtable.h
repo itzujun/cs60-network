@@ -10,7 +10,6 @@
 #ifndef ROUTINGTABLE_H
 #define ROUTINGTABLE_H
 
-#define MAX_ROUTINGTABLE_ENTRIES 256
 
 //routingtable_entry_t is the routing entry contained in the routing table.
 typedef struct routingtable_entry {
