@@ -11,6 +11,7 @@
 //Return 1 if a sendseg_arg_t is succefully sent, otherwise return -1.
 int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
 {
+  //printf("%s: here\n", __func__);
   char bufstart[2];
   char bufend[2];
   bufstart[0] = '!';
@@ -35,6 +36,7 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
   if(send(network_conn,bufend,2,0)<0) {
     return -1;
   }
+  //printf("%s: out\n", __func__);
   return 1;
 }
 
@@ -44,6 +46,7 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully received, otherwise return -1.
 int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
 {
+  //printf("%s: here\n", __func__);
     char buf[sizeof(seg_t)+2]; 
     char c;
     int idx = 0;
@@ -93,6 +96,7 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
                 }
                 memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
                 memcpy(src_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
+              //  printf("%s: out\n", __func__);
                 return 1;
             }
             else if(c=='!') {
@@ -114,6 +118,7 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully received, otherwise return -1.
 int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
 {
+ // printf("%s: here\n", __func__);
     char buf[sizeof(sendseg_arg_t)+2]; 
     char c;
     int idx = 0;
@@ -154,6 +159,7 @@ int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
                 idx = 0;
                 memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
                 memcpy(dest_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
+                //printf("%s: out\n", __func__);
                 return 1;
             }
             else if(c=='!') {
@@ -175,6 +181,7 @@ int getsegToSend(int tran_conn, int* dest_nodeID, seg_t* segPtr)
 //Return 1 if a sendseg_arg_t is succefully sent, otherwise return -1.
 int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
 {
+  //printf("%s: here\n", __func__);
   char bufstart[2];
   char bufend[2];
   bufstart[0] = '!';
@@ -195,6 +202,7 @@ int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
   if(send(tran_conn, bufend, 2, 0)<0) {
     return -1;
   }
+  //printf("%s: out\n", __func__);
   return 1;
 }
 

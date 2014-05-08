@@ -60,6 +60,7 @@ int connectToOverlay() {
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
 		printf("Could not create socket\n");
+		return -1;
 	}
 	
 	// Configure server info
@@ -113,9 +114,11 @@ void* routeupdate_daemon(void* arg) {
 
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
-	  // printf("%s: updating routeinfo\n", __func__);
+	  printf("%s: going to send\n", __func__);
 		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
+		printf("%s: sent\n", __func__);
 		sleep(ROUTEUPDATE_INTERVAL);
+		printf("%s: wake\n", __func__);
 	}
 	printf("%s: OFF\n", __func__);
 	free(routeInfo);
@@ -124,12 +127,12 @@ void* routeupdate_daemon(void* arg) {
 }
 
 dv_entry_t* getRouteInfo(int nodeNum) {
-  int myNodeId = topology_getMyNodeID();
-  while(dv != NULL) {
-    if(dv->nodeID == myNodeId) {
-      return dv->dvEntry;
+  printf("%s: here\n", __func__);
+  int myNodeId = topology_getMyNodeID(), j;
+  for(j = 0; (dv+j) != NULL; j++) {
+    if(dv[j].nodeID == myNodeId) {
+      return dv[j].dvEntry;
     }
-    dv++;
   }
   fprintf(stderr, "err in file %s func %s line %d: cannot not get entries.\n"
     , __FILE__, __func__, __LINE__); 
@@ -143,32 +146,38 @@ dv_entry_t* getRouteInfo(int nodeNum) {
 //If this packet is an Route Update packet, update the distance vector table and the routing table. 
 void* pkthandler(void* arg) {
   int myNodeId = topology_getMyNodeID();
-	snp_pkt_t* pkt = NULL;
+	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
-	  overlay_recvpkt(pkt, overlay_conn);
-	  if(pkt->header.type == ROUTE_UPDATE) {
-      if(routeUpdateHandler(pkt) != 1) {
-	      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
-		      , __FILE__, __func__, __LINE__); 
-      }
-	  } else if (pkt->header.type == ROUTE_UPDATE) {
-	    if(pkt->header.dest_nodeID == myNodeId) {
-	      if(forwardsegToSRT(transport_conn, pkt->header.dest_nodeID, (seg_t*)pkt->data) != 1) {
-		      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
-			      , __FILE__, __func__, __LINE__); 
+	  printf("%s: waiting to get a pkt\n", __func__);
+	  while(overlay_recvpkt(pkt, overlay_conn) >= 0){
+      printf("%s: get a pkt\n", __func__);
+	    if(pkt->header.type == ROUTE_UPDATE) {
+        if(routeUpdateHandler(pkt) != 1) {
+	        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+		        , __FILE__, __func__, __LINE__); 
+        }
+	    } else if (pkt->header.type == ROUTE_UPDATE) {
+	      if(pkt->header.dest_nodeID == myNodeId) {
+	        if(forwardsegToSRT(transport_conn, pkt->header.dest_nodeID, (seg_t*)pkt->data) != 1) {
+		        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+			        , __FILE__, __func__, __LINE__); 
+	        }
+	      } else {
+	        if(forwardHandler(pkt) != 1) {
+		        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
+			        , __FILE__, __func__, __LINE__); 
+	        }
 	      }
 	    } else {
-	      if(forwardHandler(pkt) != 1) {
-		      fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
-			      , __FILE__, __func__, __LINE__); 
-	      }
+		    fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
+			    , __FILE__, __func__, __LINE__); 
 	    }
-	  } else {
-		  fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
-			  , __FILE__, __func__, __LINE__); 
-	  }
-		printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
+		  printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
+		}
+    fprintf(stderr, "err in file %s func %s line %d: overlay_recvpkt err.\n"
+	    , __FILE__, __func__, __LINE__); 
+	  break;
 	}
 	printf("%s: OFF\n", __func__);
 	close(overlay_conn);
@@ -177,6 +186,7 @@ void* pkthandler(void* arg) {
 }
 
 int forwardHandler(snp_pkt_t* pkt) {
+  printf("%s: here\n", __func__);
   int nextNodeId = routingtable_getnextnode(routingtable, pkt->header.dest_nodeID);
   if(nextNodeId == -1) {
     fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId err.\n"
@@ -189,41 +199,51 @@ int forwardHandler(snp_pkt_t* pkt) {
 }
 
 int routeUpdateHandler(snp_pkt_t* pkt) {
-  int myNodeId = topology_getMyNodeID(), i;
+  printf("%s: here\n", __func__);
+  int myNodeId = topology_getMyNodeID(), i, j;
   pkt_routeupdate_t* routeupdate = (pkt_routeupdate_t*)pkt->data;
   unsigned int nodeNum = routeupdate->entryNum;
+  routeupdate_entry_t* entry;
+  dv_entry_t* dvEntry;
   
+  printf("%s: nodeNum is %d\n", __func__, nodeNum);
   // step 1, update that particular entry
+  printf("%s: step 1\n", __func__);
   pthread_mutex_lock(dv_mutex);
-  while(dv != NULL) {
-    if(dv->nodeID == pkt->header.src_nodeID) {
+  for(j = 0; (dv+j) != NULL; j++) {
+    printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
+    if(dv[j].nodeID == pkt->header.src_nodeID) {
       for(i = 0; i < nodeNum; i++) {
+        printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
         // when i = 0, it skip the nodeNum and first id
         // when i > 0, it skip this cost the next node id
         // dv->dvEntry[i].cost = *(pkt->data + 2 + 2 * i);
-        dv->dvEntry[i].cost = routeupdate->entry[i].cost;
+        entry = routeupdate->entry;
+        dv[j].dvEntry[i].cost = entry[i].cost;
       }
       break;
     }
-    dv++;
   }
   pthread_mutex_unlock(dv_mutex);
   
   // step 2, update my own entry and update routing table
+  printf("%s: step 2\n", __func__);
   pthread_mutex_lock(routingtable_mutex);
-  while(dv != NULL) {
-    if(dv->nodeID == myNodeId) {
+  for(j = 0; (dv+j) != NULL; j++) {
+    printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
+    if(dv[j].nodeID == myNodeId) {
       for(i = 0; i < nodeNum; i++) {
-        int newCost = dvtable_getcost(dv, myNodeId, dv->dvEntry[i].nodeID) 
-          + dvtable_getcost(dv, dv->dvEntry[i].nodeID, pkt->header.dest_nodeID);
-        if(dv->dvEntry[i].cost > newCost) {
+        printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
+        dvEntry = dv[j].dvEntry;
+        int newCost = dvtable_getcost(dv, myNodeId, dvEntry[i].nodeID) 
+          + dvtable_getcost(dv, dvEntry[i].nodeID, pkt->header.dest_nodeID);
+        if(dvEntry[i].cost > newCost) {
           dvtable_setcost(dv, myNodeId, pkt->header.dest_nodeID, newCost);
-          routingtable_setnextnode(routingtable, pkt->header.dest_nodeID, dv->dvEntry[i].nodeID);
+          routingtable_setnextnode(routingtable, pkt->header.dest_nodeID, dvEntry[i].nodeID);
         }
       }
       break;
     }
-    dv++;
   }
   pthread_mutex_unlock(routingtable_mutex);
   
@@ -243,6 +263,7 @@ void network_stop() {
 //After the local SRT process is connected, this function keeps receiving sendseg_arg_ts which contains the segments and their destination node addresses from the SRT process. The received segments are then encapsulated into packets (one segment in one packet), and sent to the next hop using overlay_sendpkt. The next hop is retrieved from routing table.
 //When a local SRT process is disconnected, this function waits for the next SRT process to connect.
 void waitTransport() {
+  printf("%s: here\n", __func__);
 	seg_t* seg = (seg_t*)malloc(sizeof(seg_t));
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* destNode = (int*)malloc(sizeof(int));
@@ -258,7 +279,7 @@ void waitTransport() {
 		    , __FILE__, __func__, __LINE__); 
 		    exit(1);
     }
-		while (getsegToSend(network_conn, destNode, seg) < 0) {
+		while (getsegToSend(network_conn, destNode, seg) >= 0) {
 		  pkt->header.src_nodeID = myNodeId;
 		  pkt->header.dest_nodeID = *destNode;
 		  pkt->header.length = sizeof(seg_t);
@@ -347,6 +368,7 @@ int main(int argc, char *argv[]) {
 	printf("network layer is started...\n");
 	printf("waiting for routes to be established\n");
 	sleep(NETWORK_WAITTIME);
+	printf("%s: wake\n", __func__);
 	routingtable_print(routingtable);
 
 	//wait connection from SRT process

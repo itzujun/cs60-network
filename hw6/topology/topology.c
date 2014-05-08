@@ -139,8 +139,8 @@ int topology_getNodeNum()
      __FILE__, __func__, __LINE__); 
     return -1;
   }
-  while (!feof(pFile)) {
-    fscanf(pFile, "%s %s %d", hname1, hname2, &cost);
+  
+  while (fscanf(pFile, "%s %s %d", hname1, hname2, &cost) != EOF) {
     nodeId = topology_getNodeIDfromname(hname1);
     if (idSet[nodeId] == 0) {
       idSet[nodeId] = 1;
@@ -153,7 +153,7 @@ int topology_getNodeNum()
     }
   }
   fclose(pFile);
-  return nodeNum - 1;  
+  return nodeNum;  
 }
 
 //this functions parses the topology information stored in topology.dat
@@ -373,6 +373,9 @@ int* topology_getNbrArrayAndSelfByName(char* hostname) {
 //if no direct link between the two given nodes, INFINITE_COST is returned
 unsigned int topology_getCost(int fromNodeID, int toNodeID)
 {
+  if(fromNodeID == toNodeID)
+    return 0;
+
   FILE *pFile;
   char hname1[128], hname2[128];
   int cost;
@@ -385,13 +388,14 @@ unsigned int topology_getCost(int fromNodeID, int toNodeID)
   }
   
   while (fscanf(pFile, "%s %s %d", hname1, hname2, &cost) != EOF) {
-    if(topology_getNodeIDfromname(hname1) == fromNodeID 
-      && topology_getNodeIDfromname(hname2) == toNodeID) {
-      return cost;
+      if((topology_getNodeIDfromname(hname1) == fromNodeID 
+        && topology_getNodeIDfromname(hname2) == toNodeID)
+        || (topology_getNodeIDfromname(hname2) == fromNodeID 
+        && topology_getNodeIDfromname(hname1) == toNodeID)) {
+        return cost;
+    }
   }
-}
-
-return INFINITE_COST;
+  return INFINITE_COST;
 }
 
 char* getHostnameFromNodeId(int nid) {

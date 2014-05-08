@@ -50,11 +50,11 @@
 
 //this is port number that used for nodes to interconnect each other to form an overlay 
 //you should change this to a random value to avoid conflictions with other students
-#define CONNECTION_PORT 3022
+#define CONNECTION_PORT 3073
 
 //this is port number that opened by overlay process. network layer process should connect to the overlay process on this port  
 //you should change this to a random value to avoid conflictions with other students
-#define OVERLAY_PORT 3522
+#define OVERLAY_PORT 3569
 
 //max packet data length
 #define MAX_PKT_LEN 1488 

@@ -34,7 +34,7 @@ routingtable_t* routingtable_create()
   for(i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
     routingtable->hash[i] = NULL;
   }
-  return 0;
+  return routingtable;
 }
 
 //This funtion destroys a routing table. 
@@ -129,7 +129,7 @@ void routingtable_print(routingtable_t* routingtable)
     for (i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
       routingtable_entry_t* entryPtr = routingtable->hash[i];
       while(entryPtr != NULL)
-        printf("slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+        printf("| slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
     }
     return;
   }

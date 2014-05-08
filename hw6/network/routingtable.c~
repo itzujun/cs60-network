@@ -34,7 +34,7 @@ routingtable_t* routingtable_create()
   for(i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
     routingtable->hash[i] = NULL;
   }
-  return 0;
+  return routingtable;
 }
 
 //This funtion destroys a routing table. 
@@ -68,18 +68,18 @@ void routingtable_destroy(routingtable_t* routingtable)
 void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int nextNodeID)
 {
   if(routingtable != NULL) {
-    routingtable_entry* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
-    if(entryPtr->destNodeID == NULL) {  // not found and the list is empty
-      entryPtr = (routingtable_entry*)malloc(sizeof(routingtable_entry));
+    routingtable_entry_t* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
+    if(entryPtr == NULL) {  // not found and the list is empty
+      entryPtr = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
       entryPtr->next = NULL;
     } else if(entryPtr->destNodeID != destNodeID) { // not found though the list is not empty
-      entryPtr->next = (routingtable_entry*)malloc(sizeof(routingtable_entry));
+      entryPtr->next = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
       entryPtr = entryPtr->next;
       entryPtr->next = NULL;
     }
     // no matter whether we find it or not, we need to upadte the nextNodeID 
     entryPtr->destNodeID = destNodeID;
-    entryPtr->nextNodeID = destNodeID;
+    entryPtr->nextNodeID = nextNodeID;
     return;
   }
   fprintf(stderr, "err in file %s func %s line %d: routingtable is null.\n"
@@ -87,11 +87,11 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
   return;
 }
 
-// Get routingtable_entry
+// Get routingtable_entry_t
 // If exit, return this entry
 // If not, return the last entry in the list or NULL (if head is NULL) 
-routingtable_entry* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID) {
-  routingtable_entry* entryPtr = routingtable->hash[makehash(destNodeID)];
+routingtable_entry_t* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID) {
+  routingtable_entry_t* entryPtr = routingtable->hash[makehash(destNodeID)];
   while(entryPtr != NULL 
     && entryPtr->next != NULL 
     && entryPtr->destNodeID != destNodeID) {
@@ -108,7 +108,7 @@ routingtable_entry* routingtable_getClosestEntry(routingtable_t* routingtable, i
 int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID)
 {
   if(routingtable != NULL) {
-    routingtable_entry* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
+    routingtable_entry_t* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
     if(entryPtr && entryPtr->destNodeID == destNodeID) {  // not found and the list is empty
       return entryPtr->nextNodeID;                                                                                                                      
     } else {
@@ -127,7 +127,7 @@ void routingtable_print(routingtable_t* routingtable)
     int i;
     printf("%s:\n", __func__);
     for (i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
-      routingtable_entry* entryPtr = routingtable[i];
+      routingtable_entry_t* entryPtr = routingtable->hash[i];
       while(entryPtr != NULL)
         printf("slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
     }
