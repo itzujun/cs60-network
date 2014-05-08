@@ -71,9 +71,11 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
     routingtable_entry_t* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
     if(entryPtr == NULL) {  // not found and the list is empty
       entryPtr = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
+      // printf("%s: new route on slot [%d]\n", __func__, makehash(destNodeID));
       entryPtr->next = NULL;
     } else if(entryPtr->destNodeID != destNodeID) { // not found though the list is not empty
       entryPtr->next = (routingtable_entry_t*)malloc(sizeof(routingtable_entry_t));
+      // printf("%s: new overlap route on slot [%d]\n", __func__, makehash(destNodeID));
       entryPtr = entryPtr->next;
       entryPtr->next = NULL;
     }
@@ -91,7 +93,7 @@ void routingtable_setnextnode(routingtable_t* routingtable, int destNodeID, int 
 // If exit, return this entry
 // If not, return the last entry in the list or NULL (if head is NULL) 
 routingtable_entry_t* routingtable_getClosestEntry(routingtable_t* routingtable, int destNodeID) {
-  routingtable_entry_t* entryPtr = routingtable->hash[makehash(destNodeID)];
+  routingtable_entry_t* entryPtr = (routingtable->hash + makehash(destNodeID));
   while(entryPtr != NULL 
     && entryPtr->next != NULL 
     && entryPtr->destNodeID != destNodeID) {
@@ -124,13 +126,18 @@ int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID)
 void routingtable_print(routingtable_t* routingtable)
 {
   if(routingtable != NULL) {
-    int i;
+    int i, isEmpty = 1;
     printf("%s:\n", __func__);
     for (i = 0; i < MAX_ROUTINGTABLE_SLOTS; i++) {
-      routingtable_entry_t* entryPtr = routingtable->hash[i];
-      while(entryPtr != NULL)
-        printf("slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+      routingtable_entry_t* entryPtr = (routingtable->hash + i);
+      while(entryPtr != NULL) {
+        printf("| slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+        isEmpty = 0;
+        entryPtr = entryPtr->next;
+      }
     }
+    if(isEmpty)
+      printf("%s: routingtable is empty!\n", __func__);
     return;
   }
   fprintf(stderr, "err in file %s func %s line %d: routingtable is null.\n"

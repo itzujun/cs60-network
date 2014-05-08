@@ -31,7 +31,7 @@
 #include "routingtable.h"
 
 //network layer waits this time for establishing the routing paths 
-#define NETWORK_WAITTIME 60
+#define NETWORK_WAITTIME 30
 
 /**************************************************************/
 //delare global variables
@@ -44,6 +44,7 @@ pthread_mutex_t* dv_mutex;		//dvtable mutex
 routingtable_t* routingtable;		//routing table
 pthread_mutex_t* routingtable_mutex;	//routingtable mutex
 int EXIT_SIG = 0;
+int routingInited = 0;
 
 
 /**************************************************************/
@@ -114,11 +115,11 @@ void* routeupdate_daemon(void* arg) {
 
 	printf("%s: ON\n", __func__);
 	while(!EXIT_SIG) {
-	  printf("%s: going to send\n", __func__);
+	  //printf("%s: going to send\n", __func__);
 		overlay_sendpkt(BROADCAST_NODEID, pkt, overlay_conn);
-		printf("%s: sent\n", __func__);
+		//printf("%s: sent\n", __func__);
 		sleep(ROUTEUPDATE_INTERVAL);
-		printf("%s: wake\n", __func__);
+		//printf("%s: wake\n", __func__);
 	}
 	printf("%s: OFF\n", __func__);
 	free(routeInfo);
@@ -127,7 +128,7 @@ void* routeupdate_daemon(void* arg) {
 }
 
 dv_entry_t* getRouteInfo(int nodeNum) {
-  printf("%s: here\n", __func__);
+  //printf("%s: here\n", __func__);
   int myNodeId = topology_getMyNodeID(), j;
   for(j = 0; (dv+j) != NULL; j++) {
     if(dv[j].nodeID == myNodeId) {
@@ -151,7 +152,7 @@ void* pkthandler(void* arg) {
 	while(!EXIT_SIG) {
 	  printf("%s: waiting to get a pkt\n", __func__);
 	  while(overlay_recvpkt(pkt, overlay_conn) >= 0){
-      printf("%s: get a pkt\n", __func__);
+      // printf("%s: get a pkt\n", __func__);
 	    if(pkt->header.type == ROUTE_UPDATE) {
         if(routeUpdateHandler(pkt) != 1) {
 	        fprintf(stderr, "err in file %s func %s line %d: forwardHandler err.\n"
@@ -173,7 +174,7 @@ void* pkthandler(void* arg) {
 		    fprintf(stderr, "err in file %s func %s line %d: pkt type err.\n"
 			    , __FILE__, __func__, __LINE__); 
 	    }
-		  printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
+		  //printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
 		}
     fprintf(stderr, "err in file %s func %s line %d: overlay_recvpkt err.\n"
 	    , __FILE__, __func__, __LINE__); 
@@ -186,7 +187,7 @@ void* pkthandler(void* arg) {
 }
 
 int forwardHandler(snp_pkt_t* pkt) {
-  printf("%s: here\n", __func__);
+  //printf("%s: here\n", __func__);
   int nextNodeId = routingtable_getnextnode(routingtable, pkt->header.dest_nodeID);
   if(nextNodeId == -1) {
     fprintf(stderr, "err in file %s func %s line %d: routing table get nextNodeId err.\n"
@@ -199,22 +200,22 @@ int forwardHandler(snp_pkt_t* pkt) {
 }
 
 int routeUpdateHandler(snp_pkt_t* pkt) {
-  printf("%s: here\n", __func__);
+  //printf("%s: here\n", __func__);
   int myNodeId = topology_getMyNodeID(), i, j;
   pkt_routeupdate_t* routeupdate = (pkt_routeupdate_t*)pkt->data;
   unsigned int nodeNum = routeupdate->entryNum;
   routeupdate_entry_t* entry;
   dv_entry_t* dvEntry;
   
-  printf("%s: nodeNum is %d\n", __func__, nodeNum);
+  //printf("%s: nodeNum is %d\n", __func__, nodeNum);
   // step 1, update that particular entry
-  printf("%s: step 1\n", __func__);
+  //printf("%s: step 1\n", __func__);
   pthread_mutex_lock(dv_mutex);
   for(j = 0; (dv+j) != NULL; j++) {
-    printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
+    //printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
     if(dv[j].nodeID == pkt->header.src_nodeID) {
       for(i = 0; i < nodeNum; i++) {
-        printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
+        //printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
         // when i = 0, it skip the nodeNum and first id
         // when i > 0, it skip this cost the next node id
         // dv->dvEntry[i].cost = *(pkt->data + 2 + 2 * i);
@@ -227,21 +228,28 @@ int routeUpdateHandler(snp_pkt_t* pkt) {
   pthread_mutex_unlock(dv_mutex);
   
   // step 2, update my own entry and update routing table
-  printf("%s: step 2\n", __func__);
+  //printf("%s: step 2\n", __func__);
   pthread_mutex_lock(routingtable_mutex);
   for(j = 0; (dv+j) != NULL; j++) {
-    printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
+    //printf("%s: row %d in dvEntry, nid is %d\n", __func__, j, dv[j].nodeID);
     if(dv[j].nodeID == myNodeId) {
       for(i = 0; i < nodeNum; i++) {
-        printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
+        //printf("%s: row %d, col %d in dvEntry\n", __func__, j, i);
         dvEntry = dv[j].dvEntry;
-        int newCost = dvtable_getcost(dv, myNodeId, dvEntry[i].nodeID) 
-          + dvtable_getcost(dv, dvEntry[i].nodeID, pkt->header.dest_nodeID);
-        if(dvEntry[i].cost > newCost) {
-          dvtable_setcost(dv, myNodeId, pkt->header.dest_nodeID, newCost);
-          routingtable_setnextnode(routingtable, pkt->header.dest_nodeID, dvEntry[i].nodeID);
+        if(dvEntry[i].nodeID != myNodeId) {
+          int newCost = dvtable_getcost(dv, myNodeId, pkt->header.src_nodeID) 
+            + dvtable_getcost(dv, pkt->header.src_nodeID, dvEntry[i].nodeID);
+          printf("%s: oldCost %d, newCost %d \n", __func__, dvEntry[i].cost, newCost);
+          if(routingInited == 0 || dvEntry[i].cost > newCost) {
+            printf("%s: routingtable update dest %d next %d:)\n", __func__, dvEntry[i].nodeID, pkt->header.src_nodeID);
+            dvtable_setcost(dv, myNodeId, pkt->header.src_nodeID, newCost);
+            routingtable_setnextnode(routingtable, dvEntry[i].nodeID, pkt->header.src_nodeID);
+          }
+        } else if(routingInited == 0) {
+          routingtable_setnextnode(routingtable, myNodeId, myNodeId);
         }
       }
+      routingInited = 1;
       break;
     }
   }
@@ -263,7 +271,7 @@ void network_stop() {
 //After the local SRT process is connected, this function keeps receiving sendseg_arg_ts which contains the segments and their destination node addresses from the SRT process. The received segments are then encapsulated into packets (one segment in one packet), and sent to the next hop using overlay_sendpkt. The next hop is retrieved from routing table.
 //When a local SRT process is disconnected, this function waits for the next SRT process to connect.
 void waitTransport() {
-  printf("%s: here\n", __func__);
+  //printf("%s: here\n", __func__);
 	seg_t* seg = (seg_t*)malloc(sizeof(seg_t));
 	snp_pkt_t* pkt = (snp_pkt_t*)malloc(sizeof(snp_pkt_t));
 	int* destNode = (int*)malloc(sizeof(int));
@@ -368,7 +376,7 @@ int main(int argc, char *argv[]) {
 	printf("network layer is started...\n");
 	printf("waiting for routes to be established\n");
 	sleep(NETWORK_WAITTIME);
-	printf("%s: wake\n", __func__);
+	printf("%s: wake!!!!!!!!!!\n", __func__);
 	routingtable_print(routingtable);
 
 	//wait connection from SRT process
