@@ -119,7 +119,7 @@ int routingtable_getnextnode(routingtable_t* routingtable, int destNodeID)
   if(routingtable != NULL) {
     routingtable_entry_t* entryPtr = routingtable_getClosestEntry(routingtable, destNodeID);
     if(entryPtr && entryPtr->destNodeID == destNodeID) {  // not found and the list is empty
-      return entryPtr->nextNodeID;                                                                                                                      
+      return entryPtr->nextNodeID;
     } else {
       return -1;
     }

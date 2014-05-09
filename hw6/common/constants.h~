@@ -16,7 +16,7 @@
 //Maximum segment length
 //MAX_SEG_LEN = 1500 - sizeof(seg header) - sizeof(ip header)
 //#define MAX_SEG_LEN  1464
-#define MAX_SEG_LEN 200
+#define MAX_SEG_LEN 1464
 //The packet loss rate is 10%
 #define PKT_LOSS_RATE 0.1
 //SYN_TIMEOUT value in nano seconds
@@ -76,7 +76,7 @@
 
 //network layer process opens this port, and waits for connection from transport layer process,
 //you should change this to a random value to avoid conflictions with other students
-#define NETWORK_PORT 4022
+#define NETWORK_PORT 4023
 
 //this is the broadcasting nodeID address
 #define BROADCAST_NODEID 9999

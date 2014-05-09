@@ -139,7 +139,7 @@ void routingtable_print(routingtable_t* routingtable)
       routingtable_entry_t* entryPtr = routingtable->hash[i];
       //printf("%s: mem addr on slot [%d] is %d\n", __func__, i, entryPtr);
       while(entryPtr != NULL) {
-        printf("--slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
+        printf("--|slot [%d]: dest: %d next: %d\n", i, entryPtr->destNodeID, entryPtr->nextNodeID);
         isEmpty = 0;
         entryPtr = entryPtr->next;
       }
