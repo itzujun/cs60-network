@@ -1,409 +1,410 @@
-//FILE: server/srt_server.c
-//
-//Description: this file contains the SRT server interface implementation 
-//
-//Date: April 18,2008
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <stdio.h>
-#include <sys/select.h>
-#include <strings.h>
-#include <unistd.h>
 #include <time.h>
 #include <pthread.h>
-#include <assert.h>
 #include "srt_server.h"
-#include "../topology/topology.h"
 #include "../common/constants.h"
+#include "string.h"
+#define VNAME(x) #x
+#define MAX_THREAD_NUM 11
 
+typedef struct svr_tcb svr_tcb_t;
+typedef struct port_sockfd_pair{
+  int port;
+  int sock;
+}port_sock;
 
-//declare tcbtable as global variable
-svr_tcb_t* tcbtable[MAX_TRANSPORT_CONNECTIONS];
-//declare the connection to the SNP process as global variable
-int network_conn;
+int overlay_conn, thread_count = 0;;
+const int TCB_TABLE_SIZE = MAX_TRANSPORT_CONNECTIONS;
+const int CHK_STAT_INTERVAL_NS = 50;
+pthread_t threads[MAX_THREAD_NUM];
+svr_tcb_t **tcb_table;
+port_sock **p2s_hash_t;
 
+/*interfaces to application layer*/
 
-/*********************************************************************/
 //
-//help functions for tcbtable operations
 //
-/*********************************************************************/
-
-//get the tcb indexed by sockfd
-//return 0 if no tcb found
-svr_tcb_t* tcbtable_gettcb(int sockfd) {
-	if(tcbtable[sockfd]!=NULL)
-		return tcbtable[sockfd];
-	else
-		return 0;
-}
-
-//get the tcb with given server port 
-//return 0 is no tcb found
-svr_tcb_t* tcbtable_gettcbFromPort(unsigned int serverPort)
-{
-	int i;
-	for(i=0;i<MAX_TRANSPORT_CONNECTIONS;i++) {
-		if(tcbtable[i]!=NULL && tcbtable[i]->svr_portNum==serverPort) {
-			return tcbtable[i];
-		}
-	}
-	return 0;
-}
-
-
-//get a new tcb from tcbtable
-//assign the server port with the given port number
-//return the index of the new tcb
-//return -1 if the all tcbs in tcbtable are used or the given port number is used
-int tcbtable_newtcb(unsigned int port) {
-	int i;
-	for(i=0;i<MAX_TRANSPORT_CONNECTIONS;i++) {
-		if(tcbtable[i]!=NULL&&tcbtable[i]->svr_portNum==port) {
-			return -1;
-		}
-	}
-
-	for(i=0;i<MAX_TRANSPORT_CONNECTIONS;i++) {
-		if(tcbtable[i]==NULL) {
-			tcbtable[i] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
-			tcbtable[i]->svr_portNum = port;
-			return i;
-		}
-	}
-	return -1;
-}
-
-
-/*********************************************************************/
+//  SRT socket API for the server side application.
+//  ===================================
 //
-//SRT APIs implementation
+//  In what follows, we provide the prototype definition for each call and limited pseudo code representation
+//  of the function. This is not meant to be comprehensive - more a guideline.
 //
-/*********************************************************************/
+//  You are free to design the code as you wish.
+//
+//  NOTE: When designing all functions you should consider all possible states of the FSM using
+//  a switch statement (see the Lab4 assignment for an example). Typically, the FSM has to be
+// in a certain state determined by the design of the FSM to carry out a certain action.
+//
+//  GOAL: Your job is to design and implement the prototypes below - fill in the code.
+//
 
-// This function initializes the TCB table marking all entries NULL. It also initializes 
-// a global variable for the TCP socket descriptor ``conn'' used as input parameter
-// for snp_sendseg and snp_recvseg. Finally, the function starts the seghandler thread to 
+// srt server initialization
+//
+// This function initializes the TCB table marking all entries NULL. It also initializes
+// a global variable for the overlay TCP socket descriptor ‘‘conn’’ used as input parameter
+// for snp_sendseg and snp_recvseg. Finally, the function starts the seghandler thread to
 // handle the incoming segments. There is only one seghandler for the server side which
 // handles call connections for the client.
+//
+
 void srt_server_init(int conn) {
-	//initialize global variables
-	int i;
-	for(i=0;i<MAX_TRANSPORT_CONNECTIONS;i++)
-		tcbtable[i] = NULL;
-	network_conn = conn;
+  overlay_conn = conn;
 
-	//create seghandler thread 
-	pthread_t seghandler_thread;
-	pthread_create(&seghandler_thread,NULL,seghandler, (void*)0);
+  // init tcb table and port/sock mapping
+  int i;
+  tcb_table = (svr_tcb_t**) malloc(TCB_TABLE_SIZE * sizeof(svr_tcb_t*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(tcb_table + i) = NULL;
+  }
+  p2s_hash_t = (port_sock**) malloc(TCB_TABLE_SIZE * sizeof(port_sock*));
+  for (i = 0; i < TCB_TABLE_SIZE; i++){
+    *(p2s_hash_t + i) = NULL;
+  }
+
+  // handling new coming request
+  bzero(&threads, sizeof(pthread_t) * MAX_THREAD_NUM);
+  // creating new thread
+  int pthread_err = pthread_create(threads + (thread_count++), NULL,
+    (void *) seghandler, (void *) NULL);
+  if (pthread_err != 0) {
+    printf("Create thread Failed!\n");
+    return;
+  }
+
+  return;
 }
 
+// Create a server sock
+//
 // This function looks up the client TCB table to find the first NULL entry, and creates
-// a new TCB entry using malloc() for that entry. All fields in the TCB are initialized 
-// e.g., TCB state is set to CLOSED and the server port set to the function call parameter 
-// server port.  The TCB table entry index should be returned as the new socket ID to the server 
-// and be used to identify the connection on the server side. If no entry in the TCB table  
+// a new TCB entry using malloc() for that entry. All fields in the TCB are initialized
+// e.g., TCB state is set to CLOSED and the server port set to the function call parameter
+// server port.  The TCB table entry index should be returned as the new socket ID to the server
+// and be used to identify the connection on the server side. If no entry in the TCB table
 // is available the function returns -1.
+
 int srt_server_sock(unsigned int port) {
-	//get a tcb from tcb table
-	int sockfd = tcbtable_newtcb(port);
-	if(sockfd<0)
-		return -1;
-
-	//create a receive buffer 
-	char* recvBuf;
-	recvBuf = (char*) malloc(RECEIVE_BUF_SIZE);
-	assert(recvBuf!=NULL);
-
-	//create a mutex for receive buffer	
-	pthread_mutex_t* recvBuf_mutex;
-	recvBuf_mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
-	assert(recvBuf_mutex!=NULL);
-	pthread_mutex_init(recvBuf_mutex,NULL);
-
-	// initialize  server tcb
-	svr_tcb_t* my_servertcb = tcbtable_gettcb(sockfd);
-	my_servertcb->svr_nodeID = topology_getMyNodeID();
-	my_servertcb->state = CLOSED;
-	my_servertcb->usedBufLen = 0;
-	my_servertcb->bufMutex = recvBuf_mutex;
-	my_servertcb->recvBuf = recvBuf;
-	return sockfd;
+  int idx;
+  // find the first NULL, and create a tcb entry
+  for (idx = 0; idx < TCB_TABLE_SIZE; idx++){
+    if (tcb_table[idx] == NULL) {
+      // creat a tcb entry
+      tcb_table[idx] = (svr_tcb_t*) malloc(sizeof(svr_tcb_t));
+      if(init_tcb(idx, port) == -1) 
+        printf("hash table insert failed!\n");
+      // printf("sock on port %d created\n", port);
+      return idx;
+    }
+  }
+  return -1;
 }
 
-// This function gets the TCB pointer using the sockfd and changes the state of the connection to 
-// LISTENING. It then starts a timer to ``busy wait'' until the TCB's state changes to CONNECTED 
-// (seghandler does this when a SYN is received). It waits in an infinite loop for the state 
+// Accept connection from srt client
+//
+// This function gets the TCB pointer using the sockfd and changes the state of the connetion to
+// LISTENING. It then starts a timer to ‘‘busy wait’’ until the TCB’s state changes to CONNECTED
+// (seghandler does this when a SYN is received). It waits in an infinite loop for the state
 // transition before proceeding and to return 1 when the state change happens, dropping out of
-// the busy wait loop.
+// the busy wait loop. You can implement this blocking wait in different ways, if you wish.
+//
+
 int srt_server_accept(int sockfd) {
-	//get tcb indexed by sockfd
-	svr_tcb_t* my_servertcb;
-	my_servertcb = tcbtable_gettcb(sockfd);
-	if(!my_servertcb)
-		return -1;
+  // set the state of corresponding tcb entry
+  if (state_transfer(sockfd, LISTENING) == -1)
+    printf("%s: state tranfer err!\n", __func__);
 
-	switch(my_servertcb->state) {
-		case CLOSED:
-			//state transition
-			my_servertcb->state = LISTENING;
-			//busy wait until state transitions to CONNECTED
-			while(1) {
-				if (my_servertcb->state == CONNECTED)
-					break;
-				else {
-					select(0,0,0,0,& (struct timeval) {.tv_usec = ACCEPT_POLLING_INTERVAL/1000} );
-				}
-			}
-			return 1;
-		case LISTENING:
-			return -1;
-		case CONNECTED:
-			return -1;
-		case CLOSEWAIT:
-			return -1;
-		default: 
-			return -1;
-	}
-
+  return keep_try(sockfd, LISTENING, -1, -1);
 }
 
-// Receive data from a srt client. 
-// This function keeps polling the receive buffer every RECVBUF_POLLING_INTERVAL
-// until the requested data is available, then it stores the data and returns 1
-// If the function fails, return -1 
+// Receive data from a srt client
+//
+// Receive data to a srt client. Recall this is a unidirectional transport
+// where DATA flows from the client to the server. Signaling/control messages
+// such as SYN, SYNACK, etc.flow in both directions. You do not need to implement
+// this for Lab4. We will use this in Lab5 when we implement a Go-Back-N sliding window.
+//
 int srt_server_recv(int sockfd, void* buf, unsigned int length) {
-	svr_tcb_t* servertcb;
-	servertcb = tcbtable_gettcb(sockfd);
-	if(!servertcb)
-		return -1;
-	
-	switch(servertcb->state) {
-		case CLOSED:
-			return -1;
-		case LISTENING:
-			return -1;
-		case CONNECTED:
-			//continuously poll receive buffer to see if there is enough data 
-			while(1) {
-				if(servertcb->usedBufLen<length) {
-					sleep(RECVBUF_POLLING_INTERVAL);
-				}
-				else {
-					pthread_mutex_lock(servertcb->bufMutex);
-					char* dest = (char*) buf;
-					memcpy(dest,servertcb->recvBuf,length);
-					memcpy(servertcb->recvBuf, servertcb->recvBuf+length,servertcb->usedBufLen-length);
-					servertcb->usedBufLen = servertcb->usedBufLen-length;	
-					pthread_mutex_unlock(servertcb->bufMutex);
-					break;
-				}
-			}
-			return 1;
-		case CLOSEWAIT:
-			return -1;
-		default: 
-			return -1;
-	}
-
-
+  // printf("<func: %s>\n", __func__);
+  while(1) {
+    // printf("<func: %s>: in while\n", __func__);
+    pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
+    // printf("<func: %s>: lock get, usedBufLen %d, sockfd %d:\n", __func__, tcb_table[sockfd]->usedBufLen, sockfd);
+    if(tcb_table[sockfd]->usedBufLen >= length) {
+      // int c;
+      // for(c = 0; c < length; c++) {
+      //   printf("%d %c \n", *(tcb_table[sockfd]->recvBuf + c), (char)(*(tcb_table[sockfd]->recvBuf + c)));
+      // }
+      memcpy(buf, tcb_table[sockfd]->recvBuf, length);
+      int i;
+      for(i = length; i < tcb_table[sockfd]->usedBufLen; i++) {
+        tcb_table[sockfd]->recvBuf[i - length] = tcb_table[sockfd]->recvBuf[i];
+      }
+      tcb_table[sockfd]->usedBufLen -= length;
+      // printf("<func: %s>: sockfd %d going to return 0:\n", __func__, sockfd);
+      pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+      return 0;
+    } else {
+      pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+    }
+    sleep(RECVBUF_POLLING_INTERVAL);
+  }
+  return -1;
 }
 
+// Close the srt server
+//
 // This function calls free() to free the TCB entry. It marks that entry in TCB as NULL
-// and returns 1 if succeeded (i.e., was in the right state to complete a close) and -1 
+// and returns 1 if succeeded (i.e., was in the right state to complete a close) and -1
 // if fails (i.e., in the wrong state).
-int srt_server_close(int sockfd) {
-	//get tcb indexed by sockfd
-	svr_tcb_t* servertcb;
-	servertcb = tcbtable_gettcb(sockfd);
-	if(!servertcb)
-		return -1;
+//
 
-	switch(servertcb->state) {
-		case CLOSED:
-			free(servertcb->bufMutex);
-			free(servertcb->recvBuf);
-			free(tcbtable[sockfd]);
-			tcbtable[sockfd]=NULL;
-			return 1;
-		case LISTENING:
-			return -1;
-		case CONNECTED:
-			return -1;
-		case CLOSEWAIT:
-			return -1;
-		default: 
-			return -1;
-	}
+int srt_server_close(int sockfd) {
+  printf("<func: %s>\n", __func__);
+  // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+  if(tcb_table[sockfd]->state != CLOSED)
+    printf("%s: force to close server\n", __func__);
+
+  // delete entry in hash table
+  int port = tcb_table[sockfd]->svr_portNum;
+  int idx = p2s_hash_get_idx(port);
+  free(p2s_hash_t[idx]);
+  p2s_hash_t[idx] = NULL;
+  printf("hash table entry %d -> %d deleted\n", port, sockfd);
+
+  // free the mutex and recvBuf
+  free(tcb_table[sockfd]->recvBuf);
+  tcb_table[sockfd]->recvBuf = NULL;
+  free(tcb_table[sockfd]->bufMutex);
+  tcb_table[sockfd]->bufMutex = NULL;
+
+  // delete entry in tcb table
+  free(tcb_table[sockfd]);
+  tcb_table[sockfd] = NULL;
+
+  return 1;
 }
 
-// This is a thread  started by srt_server_init(). It handles all the incoming 
+// Thread handles incoming segments
+//
+// This is a thread  started by srt_server_init(). It handles all the incoming
 // segments from the client. The design of seghanlder is an infinite loop that calls snp_recvseg(). If
-// snp_recvseg() fails then the connection to the SNP process is closed and the thread is terminated. Depending
+// snp_recvseg() fails then the overlay connection is closed and the thread is terminated. Depending
 // on the state of the connection when a segment is received  (based on the incoming segment) various
 // actions are taken. See the client FSM for more details.
-void* seghandler(void* arg) {
-	seg_t segBuf;
-	svr_tcb_t* my_servertcb;
-	int src_nodeID;
-
-	while(1) {
-		//receive a segment
-		if(snp_recvseg(network_conn, &src_nodeID, &segBuf)<0) {
-			close(network_conn);
-			pthread_exit(NULL);
-		}
-		//find the tcb to handle the segment
-		my_servertcb = tcbtable_gettcbFromPort(segBuf.header.dest_port);
-		if(!my_servertcb) {
-			printf("SERVER: NO PORT FOR RECEIVED SEGMENT\n");
-			continue;
-		}
-		
-		//segment handling
-		switch(my_servertcb->state) {
-			case CLOSED:
-				break;
-			case LISTENING:
-				//waiting for SYN segment from client
-				if(segBuf.header.type==SYN) {
-					// SYN received
-					printf("SERVER: SYN RECEIVED from nid %d\n", src_nodeID);
-					//update servertcb and send SYNACK back
-					my_servertcb->client_nodeID = src_nodeID;
-					my_servertcb->client_portNum = segBuf.header.src_port;
-					syn_received(my_servertcb,&segBuf);
-					//state transition
-					my_servertcb->state=CONNECTED;
-					printf("SERVER: CONNECTED\n");
-				}
-				else
-					printf("SERVER: IN LISTENING, NON SYN SEG RECEIVED\n");
-				break;
-			case CONNECTED:	
-				if(segBuf.header.type==SYN&&my_servertcb->client_portNum==segBuf.header.src_port&&my_servertcb->client_nodeID==src_nodeID) {
-					// SYN received
-					printf("SERVER: DUPLICATE SYN RECEIVED\n");
-					//update servertcb
-					syn_received(my_servertcb,&segBuf);
-				}
-				else if(segBuf.header.type==DATA&&my_servertcb->client_portNum==segBuf.header.src_port&&my_servertcb->client_nodeID==src_nodeID) {
-					data_received(my_servertcb,&segBuf);
-				}
-				else if(segBuf.header.type==FIN&&my_servertcb->client_portNum==segBuf.header.src_port&&my_servertcb->client_nodeID==src_nodeID) {
-					//state transition
-					printf("SERVER: FIN RECEIVED\n");
-		 			my_servertcb->state = CLOSEWAIT;	
-					printf("SERVER: CLOSEWAIT\n");
-					//start a closewait timer
-					pthread_t cwtimer;
-					pthread_create(&cwtimer,NULL,closewait, (void*)my_servertcb);
-					//send FINACK back
-					fin_received(my_servertcb,&segBuf);
-				}		
-				break;
-			case CLOSEWAIT:
-				if(segBuf.header.type==FIN&&my_servertcb->client_portNum==segBuf.header.src_port&&my_servertcb->client_nodeID==src_nodeID) {
-					printf("SERVER: DUPLICATE FIN RECEIVED\n");
-					//send FINACK back
-					fin_received(my_servertcb,&segBuf);
-				}
-				else
-					printf("SERVER: IN CLOSEWAIT, NON FIN SEG RECEIVED\n");
-				break;
-		}
-	}
-}
-
-
-
-
-/**********************************************/
 //
-//some other help functions
-//
-/**********************************************/
 
-//this is for closewait timer implementation
-//when a closewait timer is started, this thread is started
-//it waits for CLOSEWAIT_TIMEOUT
-//and transitions the state to CLOSED state
-void* closewait(void* servertcb) {
-	svr_tcb_t* my_servertcb = (svr_tcb_t*)servertcb;
-	sleep(CLOSEWAIT_TIMEOUT);
-
-	//timerout, state transitions to CLOSED
-	pthread_mutex_lock(my_servertcb->bufMutex);
-	my_servertcb->usedBufLen= 0;
-	pthread_mutex_unlock(my_servertcb->bufMutex);
-	my_servertcb->state = CLOSED;
-	printf("SERVER: CLOSED\n");
-	pthread_exit(NULL);
+void *seghandler(void* arg) {  
+  int finGet = 0, srcNodeId;
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  while(1) {
+    if(snp_recvseg(overlay_conn, &srcNodeId, segPtr) == 1){
+      int sockfd = p2s_hash_get_sock(segPtr->header.dest_port);
+      if(segPtr->header.type == SYN){
+        if (state_transfer(sockfd, CONNECTED) == -1)
+          printf("%s: transfer err!\n", __func__);
+        tcb_table[sockfd]->client_portNum = segPtr->header.src_port; // client port, GET!
+        send_control_msg(sockfd, SYNACK);
+      }
+      else if(segPtr->header.type == FIN){
+        send_control_msg(sockfd, FINACK);
+        // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+        printf("<func: %s>: get FIN on sockfd %d:\n", __func__, sockfd);
+        if(finGet == 0) {
+          if (state_transfer(sockfd, CLOSEWAIT) == -1){
+            printf("%s: state tranfer err!\n", __func__);
+          } else {
+            finGet = 1;
+            // creating new thread
+            int pthread_err = pthread_create(threads + (thread_count++), NULL,
+              (void *) close_wait, (void *) sockfd);
+            if (pthread_err != 0) {
+              printf("Create thread Failed!\n");
+              return;
+            }
+          }
+        }
+        else{
+          printf("FIN duplicate!\n");
+        }
+      }
+      else if(segPtr->header.type == DATA && 
+        tcb_table[sockfd]->usedBufLen <= RECEIVE_BUF_SIZE){
+        pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
+        int ackNum = tcb_table[sockfd]->expect_seqNum;
+        if(segPtr->header.seq_num == tcb_table[sockfd]->expect_seqNum) {
+          memcpy(tcb_table[sockfd]->recvBuf + tcb_table[sockfd]->usedBufLen, segPtr->data, segPtr->header.length);
+          printf("<func: %s>: get len %d on sockfd %d:\n", __func__, segPtr->header.length, sockfd);
+          tcb_table[sockfd]->usedBufLen += segPtr->header.length;
+          ackNum = segPtr->header.seq_num;
+          tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
+        }
+        pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+        send_ackMsg(sockfd, ackNum);
+        send_control_msg(sockfd, DATAACK);
+        // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
+      }
+      else{
+        printf("%s: unkown msg type!\n", __func__);
+        return;
+      }
+    }else{
+      return;
+    }
+  }
 }
 
-//this function handles SYN segment
-//it updates expect_seqNum and send a SYNACK back
-void syn_received(svr_tcb_t* svrtcb, seg_t* syn) {
-	//update expected sequence
-	svrtcb->expect_seqNum = syn->header.seq_num;
-	//send SYNACK back
-	seg_t synack;
-	bzero(&synack,sizeof(synack));
-	synack.header.type=SYNACK;
-	synack.header.src_port = svrtcb->svr_portNum;
-	synack.header.dest_port = svrtcb->client_portNum;
-	synack.header.length = 0;
-	snp_sendseg(network_conn,svrtcb->client_nodeID,&synack);
-	printf("SERVER: SYNACK SENT,%d,%d\n",synack.header.src_port,synack.header.dest_port);
+void recvBuf_push(int sockfd, seg_t* segPtr) {
+  return;
 }
 
-//This function handles DATA segment
-//if it's expected DATA segment,
-//extract the data and save data to send buffer and update expect_seqNum
-//wheather its expected DATA segment, send DATAACK back with new or old expect_seqNum
-void data_received(svr_tcb_t* svrtcb, seg_t* data) {
-	if(data->header.seq_num == svrtcb->expect_seqNum) {
-		//save data into receive buffer, update expect sequence number
-		if(savedata(svrtcb,data)<0)
-			return;
-	}
-	//send DATAACK back
-	seg_t dataack;
-	bzero(&dataack,sizeof(dataack));
-	dataack.header.type = DATAACK;
-	dataack.header.src_port = svrtcb->svr_portNum;
-	dataack.header.dest_port = svrtcb->client_portNum;
-	dataack.header.ack_num = svrtcb->expect_seqNum;
-	dataack.header.length = 0;
-	snp_sendseg(network_conn,svrtcb->client_nodeID,&dataack);
+void send_ackMsg(int sockfd, int ackNum) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  segPtr->header.src_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.type = DATAACK;
+  segPtr->header.ack_num = ackNum;
+
+  snp_sendseg(overlay_conn, tcb_table[sockfd]->client_nodeID, segPtr);
 }
 
-//This function handles FIN segment by sending a FINACK back 
-void fin_received(svr_tcb_t* svrtcb, seg_t* fin) {
-	seg_t finack;
-	bzero(&finack,sizeof(finack));
-	finack.header.type=FINACK;
-	finack.header.src_port = svrtcb->svr_portNum;
-	finack.header.dest_port = svrtcb->client_portNum;
-	finack.header.length = 0;
-	snp_sendseg(network_conn,svrtcb->client_nodeID,&finack);
-	printf("SERVER: FINACK SENT\n");
+void *close_wait(int sockfd) { 
+  // printf("<func: %s>\n", __func__);
+  sleep(CLOSEWAIT_TIMEOUT);
+  // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
+  if (state_transfer(sockfd, CLOSED) == -1)
+    printf("%s: state tranfer err!\n", __func__);
+  else {
+    bzero(tcb_table[sockfd]->recvBuf, sizeof(char) * tcb_table[sockfd]->usedBufLen);
+    tcb_table[sockfd]->usedBufLen = 0;
+  }    
+  // printf("%s: after close_wait current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);
 }
 
+int init_tcb(int sockfd, int port) {
+  svr_tcb_t* tcb = tcb_table[sockfd];
+  tcb->svr_nodeID = 0;  // currently unused
+  tcb->svr_portNum = port;   
+  tcb->client_nodeID = 0;  // currently unused
+  tcb->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
+  tcb->state = CLOSED; 
+  tcb->expect_seqNum = 0; 
+  tcb->recvBuf = (char*) malloc(sizeof(char) * RECEIVE_BUF_SIZE); 
+  tcb->usedBufLen = 0; 
+  tcb->bufMutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t)); 
+  pthread_mutex_init(tcb->bufMutex, NULL);
 
-
-//save received data to receive buffer and update the corresponding tcb fields
-//it is called by data_received when a DATA segment with expect sequence number is received
-int savedata(svr_tcb_t* svrtcb, seg_t* segment) {
-	if(segment->header.length + svrtcb->usedBufLen < RECEIVE_BUF_SIZE) {
-		pthread_mutex_lock(svrtcb->bufMutex);
-		memcpy(&svrtcb->recvBuf[svrtcb->usedBufLen],segment->data,segment->header.length);
-		svrtcb->usedBufLen= svrtcb->usedBufLen + segment->header.length;
-		svrtcb->expect_seqNum = segment->header.length+segment->header.seq_num;
-		pthread_mutex_unlock(svrtcb->bufMutex);
-		return 1;
-	}
-	else return -1;
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] == NULL) {
+      port_sock* p2s = (port_sock*) malloc(sizeof(port_sock));
+      p2s->port = port;
+      p2s->sock = sockfd;
+      p2s_hash_t[hash_idx] = p2s;
+      printf("hash table entry %d -> %d added\n", port, sockfd);
+      return 0;
+    }
+  }
+  return -1;
 }
 
+int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns) {
+  if(tend.tv_sec - tstart.tv_sec > 0)
+    return 1;
+  else if(tend.tv_nsec - tstart.tv_nsec > timeout_ns)
+    return 1;
+  else
+    return 0;
+}
+
+void send_control_msg(int sockfd, int type) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
+  segPtr->header.src_port = tcb_table[sockfd]->svr_portNum;
+  segPtr->header.dest_port = tcb_table[sockfd]->client_portNum;
+  segPtr->header.type = type;
+
+  snp_sendseg(overlay_conn, tcb_table[sockfd]->client_nodeID, segPtr);
+}
+
+int keep_try(int sockfd, int action, int maxtry, long timeout) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  int try_cnt = 1;
+  while(maxtry == -1 || try_cnt++ <= FIN_MAX_RETRY) {
+    struct timespec tstart={0,0}, tend={0,0};
+    clock_gettime(CLOCK_MONOTONIC, &tstart);
+    clock_gettime(CLOCK_MONOTONIC, &tend);
+    while(timeout == -1 || !is_timeout(tstart, tend, timeout)) {
+      if(action == LISTENING 
+        && tcb_table[sockfd]->state == CONNECTED)
+        return 1;
+      clock_gettime(CLOCK_MONOTONIC, &tend);
+    }
+  }
+  if (state_transfer(sockfd, CLOSED) == -1)
+    printf("%s: state tranfer err!\n", __func__);
+  return -1;
+}
+
+int state_transfer(int sockfd, int new_state) {
+  if(tcb_table[sockfd] == NULL)
+    printf("%s: tcb not found!\n", __func__);
+
+  if(new_state == CLOSED) {
+    if (tcb_table[sockfd]->state == CLOSEWAIT) {
+      tcb_table[sockfd]->state = CLOSED;
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
+      return 0;
+    }
+  } else if (new_state == CLOSEWAIT) {
+    if (tcb_table[sockfd]->state == CLOSEWAIT
+      || tcb_table[sockfd]->state == CONNECTED) {
+      tcb_table[sockfd]->state = CLOSEWAIT;
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CLOSED");
+      return 0;
+    }
+  } else if (new_state == CONNECTED) {
+    if (tcb_table[sockfd]->state == CONNECTED
+      || tcb_table[sockfd]->state == LISTENING) {
+      tcb_table[sockfd]->state = CONNECTED;
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "CONNECTED");
+      return 0;
+    }
+  } else if (new_state == LISTENING) {
+    if (tcb_table[sockfd]->state == CLOSED) {
+      tcb_table[sockfd]->state = LISTENING;
+      // printf("State of sockfd %d transfer to %s\n", sockfd, "LISTENING");
+      return 0;
+    }
+  }
+  return -1;
+}
+
+int p2s_hash_get_sock(int port) {
+  return p2s_hash_t[p2s_hash_get_idx(port)]->sock;
+}
+
+int p2s_hash_get_idx(int port) {
+  int i;
+  for(i = 0; i < TCB_TABLE_SIZE; i++) {
+    int hash_idx = (port + i) % TCB_TABLE_SIZE; // hash function
+    if(p2s_hash_t[hash_idx] != NULL 
+      && p2s_hash_t[hash_idx]->port == port) {
+      return hash_idx;
+    }
+  }
+  printf("%s: err\n", __func__);
+  return -1;  
+}

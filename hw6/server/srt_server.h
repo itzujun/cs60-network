@@ -7,6 +7,7 @@
 // Date: April 18, 2008
 //       April 21, 2008 **Added more detailed description of prototypes fixed ambiguities** ATC
 //       April 26, 2008 **Added GBN descriptions
+//       May 1, 2009    ** Clarified that srt_server_recv blocks until all the requested data is ready ** ATC
 //
 
 #ifndef SRTSERVER_H
@@ -17,23 +18,23 @@
 #include "../common/constants.h"
 
 //server states used in FSM
-#define	CLOSED 1
-#define	LISTENING 2
-#define	CONNECTED 3
-#define	CLOSEWAIT 4
+#define CLOSED 1
+#define LISTENING 2
+#define CONNECTED 3
+#define CLOSEWAIT 4
 
 
 //server transport control block. the server side of a SRT connection uses this data structure to keep track of the connection information.
 typedef struct svr_tcb {
-	unsigned int svr_nodeID;        //node ID of server, similar as IP address, currently unused
-	unsigned int svr_portNum;       //port number of server
-	unsigned int client_nodeID;     //node ID of client, similar as IP address, currently unused
-	unsigned int client_portNum;    //port number of client
-	unsigned int state;         	//state of server
-	unsigned int expect_seqNum;     //the server's expecting data sequence number	
-	char* recvBuf;                  //a pointer pointing to the receive buffer
-	unsigned int  usedBufLen;       //size of the received data in receive buffer
-	pthread_mutex_t* bufMutex;      //a pointer pointing to the mutex which is used for receive buffer access
+  unsigned int svr_nodeID;        //node ID of server, similar as IP address, currently unused
+  unsigned int svr_portNum;       //port number of server
+  unsigned int client_nodeID;     //node ID of client, similar as IP address, currently unused
+  unsigned int client_portNum;    //port number of client
+  unsigned int state;           //state of server
+  unsigned int expect_seqNum;     //the server's expecting data sequence number 
+  char* recvBuf;                  //a pointer pointing to the receive buffer
+  unsigned int  usedBufLen;       //size of the received data in receive buffer
+  pthread_mutex_t* bufMutex;      //a pointer pointing to the mutex which is used for receive buffer access
 } svr_tcb_t;
 
 
@@ -98,6 +99,9 @@ int srt_server_recv(int sockfd, void* buf, unsigned int length);
 // until the requested data is available, then it stores the data and returns 1
 // If the function fails, return -1 
 //
+// Note that srt_server_recv blocked waiting for the user requested number
+// of bytes (i.e., length) are at the server before returning data to the application
+//
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
@@ -121,34 +125,19 @@ void* seghandler(void* arg);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
+/**
+* following are helper functions
+*/
+int init_tcb(int sockfd, int client_port);
+int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns);
+void send_control_msg(int sockfd, int type);
+int keep_try(int sockfd, int action, int maxtry, long timeout);
+int p2s_hash_get_sock(int port);
+int p2s_hash_get_idx(int port);
+int state_transfer(int sockfd, int new_state);
+void* close_wait(int sockfd);
 
-/**********************************************/
-//
-//some other help functions
-//
-/**********************************************/
-
-//this function handles SYN segment
-//it updates expect_seqNum and send a SYNACK back
-void syn_received(svr_tcb_t* svrtcb, seg_t* syn);
-
-//This function handles DATA segment
-//if it's expected DATA segment,
-//extract the data and save data to send buffer and update expect_seqNum
-//wheather its expected DATA segment, send DATAACK back with new or old expect_seqNum
-void data_received(svr_tcb_t* svrtcb, seg_t* data);
-
-//This function handles FIN segment by sending a FINACK back 
-void fin_received(svr_tcb_t* svrtcb, seg_t* fin);
-
-//this is for closewait timer implementation
-//when a closewait timer is started, this thread is started
-//it waits for CLOSEWAIT_TIMEOUT
-//and transitions the state to CLOSED state
-void* closewait(void* servertcb);
-
-//save received data to receive buffer and update the corresponding tcb fields
-//it is called by data_received when a DATA segment with expect sequence number is received
-int savedata(svr_tcb_t* svrtcb, seg_t* segment);
+void send_ackMsg(int sockfd, int ackNum);
+void recvBuf_push(int sockfd, seg_t* segPtr);
 
 #endif
