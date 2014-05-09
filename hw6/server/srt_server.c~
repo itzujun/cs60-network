@@ -208,6 +208,7 @@ void *seghandler(void* arg) {
         if (state_transfer(sockfd, CONNECTED) == -1)
           printf("%s: transfer err!\n", __func__);
         tcb_table[sockfd]->client_portNum = segPtr->header.src_port; // client port, GET!
+        tcb_table[sockfd]->client_nodeID = srcNodeId;
         send_control_msg(sockfd, SYNACK);
       }
       else if(segPtr->header.type == FIN){
@@ -291,7 +292,7 @@ void *close_wait(void* sock) {
 
 int init_tcb(int sockfd, int port) {
   svr_tcb_t* tcb = tcb_table[sockfd];
-  tcb->svr_nodeID = 0;  // currently unused
+  tcb->svr_nodeID = topology_getMyNodeID(); 
   tcb->svr_portNum = port;   
   tcb->client_nodeID = 0;  // currently unused
   tcb->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
