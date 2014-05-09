@@ -22,6 +22,7 @@ int snp_sendseg(int network_conn, int dest_nodeID, seg_t* segPtr)
   sendseg_arg_t* snpSeg = (sendseg_arg_t*)malloc(sizeof(sendseg_arg_t));
   snpSeg->nodeID = dest_nodeID;
   memcpy(&snpSeg->seg, segPtr, sizeof(seg_t));
+  printf("%s: the calculated checksum is %d!\n", __func__, segPtr->header.checksum);
   
   // printf("<func: %s> send head\n", __func__);
   if (send(network_conn, bufstart, 2, 0) < 0) {
@@ -86,16 +87,17 @@ int snp_recvseg(int network_conn, int* src_nodeID, seg_t* segPtr)
                 state = 0;
                 idx = 0;
                 // puts("hadnle pkt err");
+                memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
+                memcpy(src_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
                 if(seglost(segPtr)>0) {
                     printf("seg lost!!!\n");
                     continue;
                 }
-                if(checkchecksum((seg_t*)buf) == -1){
+                if(checkchecksum((seg_t*)segPtr) == -1){
                     puts("checksum err");
                     continue;
                 }
-                memcpy(segPtr, &((sendseg_arg_t*)buf)->seg, sizeof(sendseg_arg_t));
-                memcpy(src_nodeID, &((sendseg_arg_t*)buf)->nodeID, sizeof(int));
+
               //  printf("%s: out\n", __func__);
                 return 1;
             }
@@ -188,7 +190,7 @@ int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
   bufstart[1] = '&';
   bufend[0] = '!';
   bufend[1] = '#';
-  segPtr->header.checksum = checksum(segPtr);
+  // segPtr->header.checksum = checksum(segPtr);
   sendseg_arg_t* snpSeg = (sendseg_arg_t*)malloc(sizeof(sendseg_arg_t));
   snpSeg->nodeID = src_nodeID;
   memcpy(&snpSeg->seg, segPtr, sizeof(seg_t));
@@ -280,8 +282,7 @@ unsigned short checksum(seg_t* segment)
 int checkchecksum(seg_t* segment)
 {
     unsigned short chksum = checksum(segment);
-    // printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
-    // printf("%s: the checkchecksum is %d!\n", __func__, chksum);
-    return 1;
+    printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
+    printf("%s: the checkchecksum is %d!\n", __func__, chksum);
     return (chksum == 0 || chksum == 0xFF) ? 1 : -1;
 }
