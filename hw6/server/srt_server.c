@@ -221,7 +221,7 @@ void *seghandler(void* arg) {
             finGet = 1;
             // creating new thread
             int pthread_err = pthread_create(threads + (thread_count++), NULL,
-              (void *) close_wait, (void *) sockfd);
+              (void *) close_wait, (void *) &sockfd);
             if (pthread_err != 0) {
               printf("Create thread Failed!\n");
               return;
@@ -275,7 +275,8 @@ void send_ackMsg(int sockfd, int ackNum) {
   snp_sendseg(overlay_conn, tcb_table[sockfd]->client_nodeID, segPtr);
 }
 
-void *close_wait(int sockfd) { 
+void *close_wait(void* sock) { 
+  int sockfd = *((int*)sock);
   // printf("<func: %s>\n", __func__);
   sleep(CLOSEWAIT_TIMEOUT);
   // printf("%s: current state %d, sockfd is %d\n", __func__, tcb_table[sockfd]->state, sockfd);

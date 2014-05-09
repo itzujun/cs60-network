@@ -176,9 +176,9 @@ void* pkthandler(void* arg) {
 			        , __FILE__, __func__, __LINE__); 
 	        }
 	      }
-	    } else {
-		    fprintf(stderr, "warning in file %s func %s line %d: unkown pkt type %d.\n"
-			    , __FILE__, __func__, __LINE__, pkt->header.type);
+	    //} else {
+		  //  fprintf(stderr, "warning in file %s func %s line %d: unkown pkt type %d, discard.\n"
+			//    , __FILE__, __func__, __LINE__, pkt->header.type);
 	    }
 		  //printf("Routing: received a packet from neighbor %d\n", pkt->header.src_nodeID);
 		}
@@ -296,7 +296,7 @@ void waitTransport() {
 		    exit(1);
     }
     printf("%s: waiting seg from srt\n", __func__);
-		while (getsegToSend(transport_conn, destNode, seg) >= 0) {
+		while (!EXIT_SIG && getsegToSend(transport_conn, destNode, seg) >= 0) {
 		  printf("%s: get seg from srt type %d, dest %d\n", __func__, seg->header.type, *destNode);
 		  pkt->header.src_nodeID = myNodeId;
 		  pkt->header.dest_nodeID = *destNode;
