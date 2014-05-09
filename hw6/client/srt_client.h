@@ -7,10 +7,12 @@
 // Date: April 18, 2008
 //       April 21, 2008 **Added more detailed description of prototypes fixed ambiguities** ATC
 //       April 26, 2008 ** Added GBN and send buffer function descriptions **
+//       May 1, 2009    ** Clarified that srt_client_send is non blocking ** ATC
 //
 
 #ifndef SRTCLIENT_H
 #define SRTCLIENT_H
+
 #include <pthread.h>
 #include "../common/seg.h"
 
@@ -19,6 +21,11 @@
 #define	SYNSENT 2
 #define	CONNECTED 3
 #define	FINWAIT 4
+
+#define MAX_SEQ_NO 11
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 
 //unit to store segments in send buffer linked list.
 typedef struct segBuf {
@@ -30,9 +37,9 @@ typedef struct segBuf {
 
 //client transport control block. the client side of a SRT connection uses this data structure to keep track of the connection information.   
 typedef struct client_tcb {
-	unsigned int svr_nodeID;        //node ID of server, similar as IP address
+	unsigned int svr_nodeID;        //node ID of server, similar as IP address, currently unused
 	unsigned int svr_portNum;       //port number of server
-	unsigned int client_nodeID;     //node ID of client, similar as IP address
+	unsigned int client_nodeID;     //node ID of client, similar as IP address, currently unused
 	unsigned int client_portNum;    //port number of client
 	unsigned int state;     	//state of client
 	unsigned int next_seqNum;       //next sequence number to be used by new segment 
@@ -65,7 +72,7 @@ typedef struct client_tcb {
 void srt_client_init(int conn);
 
 // This function initializes the TCB table marking all entries NULL. It also initializes 
-// a global variable for the TCP socket descriptor ``conn'' used as input parameter
+// a global variable for the overlay TCP socket descriptor ``conn'' used as input parameter
 // for snp_sendseg and snp_recvseg. Finally, the function starts the seghandler thread to 
 // handle the incoming segments. There is only one seghandler for the client side which
 // handles call connections for the client.
@@ -100,13 +107,17 @@ int srt_client_connect(int socked, int nodeID, unsigned int server_port);
 
 int srt_client_send(int sockfd, void* data, unsigned int length);
 
-// Send data to a srt server. This function should use the socket ID to find the TCP entry. 
-// Then It should create segBufs using the given data and append them to send buffer linked list. 
-// If the send buffer was empty before insertion, a thread called sendbuf_timer 
+// Send data to a srt server. This function should use the SRT socket ID to find the TCP entry. 
+// It creates segBufs using the given data and append them to send linked list. 
+// If the send buffer is empty before insertion, a thread called sendbuf_timer 
 // should be started to poll the send buffer every SENDBUF_POLLING_INTERVAL time
 // to check if a timeout event should occur. If the function completes successfully, 
-// it returns 1. Otherwise, it returns -1.
-// 
+// it returns 1. Otherwise, it returns -1. srt_client_send is a non-blocking function call.
+// Because user data is fragmented into fixed sized SRT segments there may be
+// multiple segBufs queued to the send link list for a single srt_client_send call.
+// If the call is successful the data is queued on the TCB send linked list and
+// depending on the condition of the sliding window the data will either be
+// trasmitted over the network or queued waiting to be transmitted. 
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
@@ -138,47 +149,35 @@ void *seghandler(void* arg);
 
 // This is a thread  started by srt_client_init(). It handles all the incoming 
 // segments from the server. The design of seghanlder is an infinite loop that calls snp_recvseg(). If
-// snp_recvseg() fails then the connection to SNP process is closed and the thread is terminated. Depending
+// snp_recvseg() fails then the overlay connection is closed and the thread is terminated. Depending
 // on the state of the connection when a segment is received  (based on the incoming segment) various
 // actions are taken. See the client FSM for more details.
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-/*******************************************************/
-//
-// help functions: send buffer operations 
-//
-/*******************************************************/
 
-//add a segBuf to send buffer
-//you should initialize the necessary fields in segBuf
-//and add segBuf in to the send buffer linked list used by clienttcb
-void sendBuf_addSeg(client_tcb_t* clienttcb, segBuf_t* newSegBuf);
+void* sendBuf_timer(void* client_port);
+
+// This thread continuously polls send buffer to trigger timeout events
+// It should always be running when the send buffer is not empty
+// If the current time -  first sent-but-unAcked segment's sent time > DATA_TIMEOUT, a timeout event occurs
+// When timeout, resend all sent-but-unAcked segments
+// When the send buffer is empty, this thread terminates
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-//send segments in clienttcb's send buffer until sent-but-unAcked segments reaches GBN_WIN
-void sendBuf_send(client_tcb_t* clienttcb);
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+/**
+* following are helper functions
+*/
+int init_tcb(int sockfd, int client_port);
+int is_timeout(struct timespec tstart, struct timespec tend, long timeout_ns);
+void send_control_msg(int sockfd, int action);
+int keep_try(int sockfd, int action, int maxtry, long timeout);
+int p2s_hash_get_sock(int port);
+int p2s_hash_get_idx(int port);
+int state_transfer(int sockfd, int new_state);
 
-// this function is called when timeout event occurs
-// resend all sent-but-unAcked segments in clienttcb's send buffer
-void sendBuf_timeout(client_tcb_t* clienttcb);
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-//this function is called when a DATAACK is received
-//you should update the pointers in clienttcb and free all the acked segBufs
-void sendBuf_recvAck(client_tcb_t* clienttcb, unsigned int seqnum);
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-//delete clienttcb's send buffer linked list
-//and clear the send buffer pointers in clienttcb
-//this function is called when clienttcb transitions to CLOSED state
-void sendBuf_clear(client_tcb_t* clienttcb);
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-//thread that continuously polls send buffer to trigger timeout events
-//if the first sent-but-unAcked segment times out, call sendBuf_timeout()
-void* sendBuf_timer(void* clienttcb);
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void sendBuf_instantSend(client_tcb_t *tcb);
+void sendBuf_append(client_tcb_t *tcb, segBuf_t* bufNode, int is_first);
+void sendBuf_handleACK(int sockfd, int ack_num);
 
 #endif

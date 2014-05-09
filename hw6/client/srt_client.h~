@@ -22,6 +22,8 @@
 #define	CONNECTED 3
 #define	FINWAIT 4
 
+#define MAX_SEQ_NO 11
+
 //unit to store segments in send buffer linked list.
 typedef struct segBuf {
         seg_t seg;
@@ -87,7 +89,7 @@ int srt_client_sock(unsigned int client_port);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //
 
-int srt_client_connect(int socked, unsigned int server_port);
+int srt_client_connect(int socked, int nodeID, unsigned int server_port);
 
 // This function is used to connect to the server. It takes the socket ID and the 
 // server's port number as input parameters. The socket ID is used to find the TCB entry.  
@@ -151,7 +153,7 @@ void *seghandler(void* arg);
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-void* sendBuf_timer(int client_port);
+void* sendBuf_timer(void* client_port);
 
 // This thread continuously polls send buffer to trigger timeout events
 // It should always be running when the send buffer is not empty
