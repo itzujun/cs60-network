@@ -29,7 +29,7 @@
 //After connecting to tehe local SNP process, wait STARTDELAY for server to start.
 #define STARTDELAY 1
 //After the file is sent, the client waits for WAITTIME seconds, and then closes the connection.
-#define WAITTIME 5
+#define WAITTIME 20
 
 //This function connects to the local SNP process on port NETWORK_PORT. If TCP connection fails, return -1. The TCP socket desciptor returned will be used by SRT to send segments.
 int connectToNetwork() {

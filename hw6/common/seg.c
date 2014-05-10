@@ -219,7 +219,6 @@ int forwardsegToSRT(int tran_conn, int src_nodeID, seg_t* segPtr)
 // We flip  a random bit in the segment to create invalid checksum
 int seglost(seg_t* segPtr)
 {
-  return 0;
 	int random = rand()%100;
 	if(random<PKT_LOSS_RATE*100) {
 		//50% probability of losing a segment
@@ -285,7 +284,6 @@ unsigned short checksum(seg_t* segment)
 int checkchecksum(seg_t* segment)
 {
     unsigned short chksum = checksum(segment);
-    return 1;
     if(chksum != 0 && chksum != 0xFF){
         printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
         printf("%s: the checkchecksum is %d!\n", __func__, chksum);

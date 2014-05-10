@@ -462,7 +462,7 @@ void *seghandler(void *arg) {
 }
 
 void sendBuf_handleACK(int sockfd, int ack_num) {
-  // printf("<func: %s, ack_num %d>\n", __func__, ack_num);
+  printf("<func: %s, ack_num %d>\n", __func__, ack_num);
   client_tcb_t *tcb = tcb_table[sockfd];
   // printf("%s: entry get\n", __func__);
   // printf("%s: lock\n", __func__);
@@ -481,12 +481,13 @@ void sendBuf_handleACK(int sockfd, int ack_num) {
       segBuf_t* tmpPtr = tcb->sendBufHead;
       tcb->sendBufHead = tcb->sendBufHead->next;
       // printf("%s: head to next\n", __func__);
-      if(tmpPtr == tcb->sendBufunSent && ack_num != MAX_SEQ_NO)
-        printf("err in %s: try to relase an unsent node\n", __func__);
+      if(tmpPtr == tcb->sendBufunSent && ack_num != MAX_SEQ_NO && tcb->sendBufHead != NULL)
+        printf("err in %s: try to relase an unsent node seq %d acknum %d\n", __func__, tcb->sendBufHead->seg.header.seq_num, ack_num);
       // printf("%s: going to free!!!\n", __func__);
       free(tmpPtr);
       tcb->unAck_segNum--;
     }
+    sendBuf_instantSend(tcb_table[sockfd]);
     // if the buffer is empty
     if( tcb->sendBufHead == NULL) {
       tcb->sendBufTail = tcb->sendBufTail = tcb->sendBufunSent = NULL;
@@ -543,37 +544,41 @@ int p2s_hash_get_idx(int port) {
 
 void *sendBuf_timer(void* c_port) { 
   int client_port = *((int*)c_port);
-  printf("<func: %s>\n", __func__);
+  
   // printf("in func %s\n", __func__);
   int sockfd = p2s_hash_get_sock(client_port);
   if(sockfd == -1)
     printf("<func: %s>: sockfd error on port %d\n", __func__, client_port);
-
+  
   client_tcb_t *tcb = tcb_table[sockfd];
+  printf("<func: %s> tcb->unAck_segNum %d, tcb->sendBufHead %d\n", __func__, tcb->unAck_segNum, tcb->sendBufHead);
   while(tcb->unAck_segNum != 0 || tcb->sendBufHead != NULL) {
-    sleep(SENDBUF_POLLING_INTERVAL);
+    sleep(SENDBUF_POLLING_INTERVAL / 1000000000);
     // mutual exclusion free for buffer operation
     // printf("%s: lock\n", __func__);
+    //printf("<func: %s>: while 1 before lock %d\n", __func__, client_port);
     pthread_mutex_lock(tcb->bufMutex);
-    int bgn_idx = 0; 
     segBuf_t* bufPtr = tcb->sendBufHead;
     // try to sent bufNode within GBN_WINDOW
-    while (bgn_idx < GBN_WINDOW && bufPtr != NULL) {
+    //printf("<func: %s>: while 1 after lock %d\n", __func__, client_port);
+    while (tcb->unAck_segNum  < GBN_WINDOW && bufPtr != NULL) {
       time_t t0 = bufPtr->sentTime;
+      //printf("<func: %s>: while 2 %d\n", __func__, client_port);
       if (t0 == 0 
-        || difftime(time(NULL), t0) * 1000 >= DATA_TIMEOUT) {
+        || difftime(time(NULL), t0) * 1000000 >= DATA_TIMEOUT) {
         // if it is not sent yet
         // or if this bufNode sent before and reach timeout, then resend
         if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &bufPtr->seg) < 0)
           printf("err in %s: snp_sendseg fail \n", __func__);
         else {
-          printf("<func: %s> send data with seqNum: %d\n", __func__, tcb->sendBufunSent->seg.header.seq_num);
+          printf("<func: %s> send data with seqNum: %d\n", __func__, bufPtr->seg.header.seq_num);
           bufPtr->sentTime = (unsigned int)time(NULL);
+          tcb->sendBufunSent = bufPtr->next;
+          bufPtr = bufPtr->next;
+          tcb->unAck_segNum++;
         }
+
       }
-      tcb->sendBufunSent = bufPtr->next;
-      bufPtr = bufPtr->next;
-      bgn_idx++;
     }
     pthread_mutex_unlock(tcb->bufMutex);
     // printf("%s: unlock\n", __func__);

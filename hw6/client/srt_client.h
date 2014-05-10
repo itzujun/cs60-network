@@ -22,7 +22,7 @@
 #define	CONNECTED 3
 #define	FINWAIT 4
 
-#define MAX_SEQ_NO 11
+#define MAX_SEQ_NO 10
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))

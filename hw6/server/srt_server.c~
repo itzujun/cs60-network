@@ -245,6 +245,7 @@ void *seghandler(void* arg) {
           tcb_table[sockfd]->expect_seqNum += segPtr->header.length;
         }
         pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
+        printf("<func: %s>: send back DATAACK %d:\n", __func__, ackNum);
         send_ackMsg(sockfd, ackNum);
         send_control_msg(sockfd, DATAACK);
         // printf("FIN received for sockfd %d, port %d\n", sockfd, segPtr->header.dest_port);
@@ -294,7 +295,7 @@ int init_tcb(int sockfd, int port) {
   svr_tcb_t* tcb = tcb_table[sockfd];
   tcb->svr_nodeID = topology_getMyNodeID(); 
   tcb->svr_portNum = port;   
-  tcb->client_nodeID = 0;  // currently unused
+  tcb->client_nodeID = 0;  // currently unused until a pkt from client received
   tcb->client_portNum = 0; // @TODO: where to get it??, will be initialized latter
   tcb->state = CLOSED; 
   tcb->expect_seqNum = 0; 

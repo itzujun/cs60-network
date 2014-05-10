@@ -285,7 +285,6 @@ unsigned short checksum(seg_t* segment)
 int checkchecksum(seg_t* segment)
 {
     unsigned short chksum = checksum(segment);
-    return 1;
     if(chksum != 0 && chksum != 0xFF){
         printf("%s: the checksum is %d!\n", __func__, segment->header.checksum);
         printf("%s: the checkchecksum is %d!\n", __func__, chksum);

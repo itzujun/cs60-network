@@ -18,7 +18,7 @@
 //#define MAX_SEG_LEN  1464
 #define MAX_SEG_LEN 200
 //The packet loss rate is 10%
-#define PKT_LOSS_RATE 0.1
+#define PKT_LOSS_RATE 0.0
 //SYN_TIMEOUT value in nano seconds
 #define SYN_TIMEOUT 500000000
 //SYN_TIMEOUT value in nano seconds

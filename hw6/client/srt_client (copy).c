@@ -117,7 +117,7 @@ int init_tcb(int sockfd, int port) {
   client_tcb_t* tcb = tcb_table[sockfd];
   tcb->svr_nodeID = 0;  // currently unused
   tcb->svr_portNum = 0; // @TODO: where to get it??, will be initialized latter  
-  tcb->client_nodeID = 0;  // currently unused
+  tcb->client_nodeID = topology_getMyNodeID();
   tcb->client_portNum = port;
   tcb->state = CLOSED; 
   tcb->next_seqNum = 0; 
@@ -160,7 +160,7 @@ int init_tcb(int sockfd, int port) {
 //
 
 
-int srt_client_connect(int sockfd, unsigned int server_port) {
+int srt_client_connect(int sockfd, int nodeID, unsigned int server_port) {
   printf("<func: %s>\n", __func__);
   // set the state of corresponding tcb entry
   if (state_transfer(sockfd, SYNSENT) == -1)
@@ -169,6 +169,7 @@ int srt_client_connect(int sockfd, unsigned int server_port) {
     printf("%s: tcb not found!\n", __func__);
 
   tcb_table[sockfd]->svr_portNum = server_port;
+  tcb_table[sockfd]->svr_nodeID = nodeID;
   return keepTry(sockfd, SYNSENT, SYN_MAX_RETRY, SYN_TIMEOUT);
 }
 
@@ -195,7 +196,7 @@ void send_control_msg(int sockfd, int type) {
   segPtr->header.type = type;
 
   // printf("%s: about to snp_sendseg \n", __func__);
-  if(snp_sendseg(overlay_conn, segPtr) < 0)
+  if(snp_sendseg(overlay_conn, tcb_table[sockfd]->svr_nodeID, segPtr) < 0)
     printf("%s: snp_sendseg fail \n", __func__);
   // else
     // printf("%s: snp_sendseg done \n", __func__);
@@ -246,7 +247,10 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     // for(c = 0; c < len; c++) {
     //   printf("%d %c \n", *(bufNode->seg.data + c), (char)(*(bufNode->seg.data + c)));
     // }
-
+    char tmp[2048];
+    memcpy(tmp, bufNode->seg.data, len);
+    tmp[len] = '\0';
+    printf("<func: %s>: seg data is %s\n", __func__, tmp);
     printf("<func: %s>: sockfd %d's length %d\n", __func__, sockfd, bufNode->seg.header.length);
     tcb_table[sockfd]->next_seqNum += bufNode->seg.header.length;
     sendBuf_append(tcb_table[sockfd], bufNode, is_first);
@@ -263,7 +267,7 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
 
   // create sendBuf_timer for this tcb buffer
   int pthread_err = pthread_create(threads + (thread_count++), NULL,
-    (void *) sendBuf_timer, (void *) tcb_table[sockfd]->client_portNum);
+    (void *) sendBuf_timer, (void *) &tcb_table[sockfd]->client_portNum);
   if (pthread_err != 0) {
     printf("%s: Create thread Failed!\n", __func__);
     return;
@@ -283,10 +287,12 @@ void sendBuf_instantSend(client_tcb_t *tcb) {
   // send initial segments as much as possible
   while (tcb->unAck_segNum <= GBN_WINDOW && tcb->sendBufunSent != NULL) {
     // send seg
-    if(snp_sendseg(overlay_conn, &tcb->sendBufunSent->seg) < 0)
+    if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &tcb->sendBufunSent->seg) < 0)
       printf("err in %s: snp_sendseg fail \n", __func__);
-    else 
+    else {
+      printf("<func: %s> send data with seqNum: %d\n", __func__, tcb->sendBufunSent->seg.header.seq_num);
       tcb->sendBufunSent->sentTime = (unsigned int)time(NULL);
+    }
     tcb->unAck_segNum++;    
     tcb->sendBufunSent = tcb->sendBufunSent->next;
   }
@@ -425,10 +431,11 @@ int srt_client_close(int sockfd) {
 //
 
 void *seghandler(void *arg) {
-  printf("<func: %s>\n", __func__);
+  //printf("<func: %s>\n", __func__);
+  int src_nodeID;
   seg_t* segPtr = (seg_t*) malloc(sizeof(seg_t));
   while(1) {
-    if(snp_recvseg(overlay_conn, segPtr) == 1){
+    if(snp_recvseg(overlay_conn, &src_nodeID, segPtr) == 1){
       int sockfd = p2s_hash_get_sock(segPtr->header.dest_port);
       if(sockfd == -1) printf("%s: Hash get sockfd err\n", __func__);
       if(segPtr->header.type == SYNACK){
@@ -455,7 +462,7 @@ void *seghandler(void *arg) {
 }
 
 void sendBuf_handleACK(int sockfd, int ack_num) {
-  // printf("<func: %s, ack_num %d>\n", __func__, ack_num);
+  printf("<func: %s, ack_num %d>\n", __func__, ack_num);
   client_tcb_t *tcb = tcb_table[sockfd];
   // printf("%s: entry get\n", __func__);
   // printf("%s: lock\n", __func__);
@@ -474,8 +481,8 @@ void sendBuf_handleACK(int sockfd, int ack_num) {
       segBuf_t* tmpPtr = tcb->sendBufHead;
       tcb->sendBufHead = tcb->sendBufHead->next;
       // printf("%s: head to next\n", __func__);
-      if(tmpPtr == tcb->sendBufunSent && ack_num != MAX_SEQ_NO)
-        printf("err in %s: try to relase an unsent node\n", __func__);
+      if(tmpPtr == tcb->sendBufunSent && ack_num != MAX_SEQ_NO && tcb->sendBufHead != NULL)
+        printf("err in %s: try to relase an unsent node seq %d acknum %d\n", __func__, tcb->sendBufHead->seg.header.seq_num, ack_num);
       // printf("%s: going to free!!!\n", __func__);
       free(tmpPtr);
       tcb->unAck_segNum--;
@@ -534,36 +541,43 @@ int p2s_hash_get_idx(int port) {
   return -1;  
 }
 
-void *sendBuf_timer(int client_port) { 
-  printf("<func: %s>\n", __func__);
+void *sendBuf_timer(void* c_port) { 
+  int client_port = *((int*)c_port);
+  
   // printf("in func %s\n", __func__);
   int sockfd = p2s_hash_get_sock(client_port);
   if(sockfd == -1)
     printf("<func: %s>: sockfd error on port %d\n", __func__, client_port);
-
+  
   client_tcb_t *tcb = tcb_table[sockfd];
-  while(tcb->unAck_segNum != 0 || tcb->sendBufHead == NULL) {
-    sleep(SENDBUF_POLLING_INTERVAL);
+  printf("<func: %s> tcb->unAck_segNum %d, tcb->sendBufHead %d\n", __func__, tcb->unAck_segNum, tcb->sendBufHead);
+  while(tcb->unAck_segNum != 0 || tcb->sendBufHead != NULL) {
+    sleep(SENDBUF_POLLING_INTERVAL / 1000000000);
     // mutual exclusion free for buffer operation
     // printf("%s: lock\n", __func__);
+    //printf("<func: %s>: while 1 before lock %d\n", __func__, client_port);
     pthread_mutex_lock(tcb->bufMutex);
-    int bgn_idx = 0; 
     segBuf_t* bufPtr = tcb->sendBufHead;
     // try to sent bufNode within GBN_WINDOW
-    while (bgn_idx < GBN_WINDOW && bufPtr != NULL) {
+    //printf("<func: %s>: while 1 after lock %d\n", __func__, client_port);
+    while (tcb->unAck_segNum  < GBN_WINDOW && bufPtr != NULL) {
       time_t t0 = bufPtr->sentTime;
+      //printf("<func: %s>: while 2 %d\n", __func__, client_port);
       if (t0 == 0 
-        || difftime(time(NULL), t0) * 1000 >= DATA_TIMEOUT) {
+        || difftime(time(NULL), t0) * 1000000 >= DATA_TIMEOUT) {
         // if it is not sent yet
         // or if this bufNode sent before and reach timeout, then resend
-        if(snp_sendseg(overlay_conn, &bufPtr->seg) < 0)
+        if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &bufPtr->seg) < 0)
           printf("err in %s: snp_sendseg fail \n", __func__);
-        else 
+        else {
+          printf("<func: %s> send data with seqNum: %d\n", __func__, bufPtr->seg.header.seq_num);
           bufPtr->sentTime = (unsigned int)time(NULL);
+          tcb->sendBufunSent = bufPtr->next;
+          bufPtr = bufPtr->next;
+          tcb->unAck_segNum++;
+        }
+
       }
-      tcb->sendBufunSent = bufPtr->next;
-      bufPtr = bufPtr->next;
-      bgn_idx++;
     }
     pthread_mutex_unlock(tcb->bufMutex);
     // printf("%s: unlock\n", __func__);

@@ -26,7 +26,7 @@
 #define CLIENTPORT1 87
 #define SVRPORT1 88
 //After the received file data is saved, the server waits WAITTIME seconds, and then closes the connection.
-#define WAITTIME 15
+#define WAITTIME 20
 
 //This function connects to the local SNP process on port NETWORK_PORT. If the TCP connection fails, return -1. The TCP socket desciptor returned will be used by SRT to send segments.
 int connectToNetwork() {
@@ -81,7 +81,7 @@ int main() {
 	printf("%s: file len is %d\n", __func__, fileLen);
 	char* buf = (char*) malloc(fileLen);
 	srt_server_recv(sockfd,buf,fileLen);
-	printf("%s: file get\n", __func__, fileLen);
+	printf("%s: file get\n", __func__);
 
 	//save the received file data in receivedtext.txt
 	FILE* f;
