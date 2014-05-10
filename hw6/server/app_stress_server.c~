@@ -78,12 +78,14 @@ int main() {
 	//and then receive the file data
 	int fileLen;
 	srt_server_recv(sockfd,&fileLen,sizeof(int));
+	printf("%s: file len is %d\n", __func__, fileLen);
 	char* buf = (char*) malloc(fileLen);
 	srt_server_recv(sockfd,buf,fileLen);
+	printf("%s: file get\n", __func__, fileLen);
 
 	//save the received file data in receivedtext.txt
 	FILE* f;
-	f = fopen("receivedtext.txt","a");
+	f = fopen("server/receivedtext.txt","a");
 	fwrite(buf,fileLen,1,f);
 	fclose(f);
 	free(buf);

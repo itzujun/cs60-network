@@ -247,7 +247,10 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     // for(c = 0; c < len; c++) {
     //   printf("%d %c \n", *(bufNode->seg.data + c), (char)(*(bufNode->seg.data + c)));
     // }
-
+    char tmp[2048];
+    memcpy(tmp, bufNode->seg.data, len);
+    tmp[len] = '\0';
+    printf("<func: %s>: seg data is %s\n", __func__, tmp);
     printf("<func: %s>: sockfd %d's length %d\n", __func__, sockfd, bufNode->seg.header.length);
     tcb_table[sockfd]->next_seqNum += bufNode->seg.header.length;
     sendBuf_append(tcb_table[sockfd], bufNode, is_first);
@@ -286,8 +289,10 @@ void sendBuf_instantSend(client_tcb_t *tcb) {
     // send seg
     if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &tcb->sendBufunSent->seg) < 0)
       printf("err in %s: snp_sendseg fail \n", __func__);
-    else 
+    else {
+      printf("<func: %s> send data with seqNum: %d\n", __func__, tcb->sendBufunSent->seg.header.seq_num);
       tcb->sendBufunSent->sentTime = (unsigned int)time(NULL);
+    }
     tcb->unAck_segNum++;    
     tcb->sendBufunSent = tcb->sendBufunSent->next;
   }
@@ -537,7 +542,7 @@ int p2s_hash_get_idx(int port) {
 }
 
 void *sendBuf_timer(void* c_port) { 
-  int client_port = *((int*)client_port);
+  int client_port = *((int*)c_port);
   printf("<func: %s>\n", __func__);
   // printf("in func %s\n", __func__);
   int sockfd = p2s_hash_get_sock(client_port);
@@ -561,8 +566,9 @@ void *sendBuf_timer(void* c_port) {
         // or if this bufNode sent before and reach timeout, then resend
         if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &bufPtr->seg) < 0)
           printf("err in %s: snp_sendseg fail \n", __func__);
-        else 
+        else {
           bufPtr->sentTime = (unsigned int)time(NULL);
+          }
       }
       tcb->sendBufunSent = bufPtr->next;
       bufPtr = bufPtr->next;
