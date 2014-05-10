@@ -16,7 +16,7 @@
 //Maximum segment length
 //MAX_SEG_LEN = 1500 - sizeof(seg header) - sizeof(ip header)
 //#define MAX_SEG_LEN  1464
-#define MAX_SEG_LEN 1464
+#define MAX_SEG_LEN 200
 //The packet loss rate is 10%
 #define PKT_LOSS_RATE 0.1
 //SYN_TIMEOUT value in nano seconds

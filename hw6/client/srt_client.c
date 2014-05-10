@@ -550,7 +550,7 @@ void *sendBuf_timer(void* c_port) {
     printf("<func: %s>: sockfd error on port %d\n", __func__, client_port);
 
   client_tcb_t *tcb = tcb_table[sockfd];
-  while(tcb->unAck_segNum != 0 || tcb->sendBufHead == NULL) {
+  while(tcb->unAck_segNum != 0 || tcb->sendBufHead != NULL) {
     sleep(SENDBUF_POLLING_INTERVAL);
     // mutual exclusion free for buffer operation
     // printf("%s: lock\n", __func__);
