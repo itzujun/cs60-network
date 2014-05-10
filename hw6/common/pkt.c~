@@ -24,7 +24,7 @@
 // Return 1 if sendpkt_arg_t data structure is sent successfully, otherwise return -1.
 int overlay_sendpkt(int nextNodeID, snp_pkt_t* pkt, int overlay_conn)
 {
-  printf("%s: here\n", __func__);
+  //printf("%s: here\n", __func__);
   char bufstart[2];
   char bufend[2];
   bufstart[0] = '!';
@@ -45,7 +45,7 @@ int overlay_sendpkt(int nextNodeID, snp_pkt_t* pkt, int overlay_conn)
     return -1;
   }
   free(snpPkt);
-  printf("%s: out\n", __func__);
+  //printf("%s: out\n", __func__);
   return 1;
 }
 

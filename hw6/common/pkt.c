@@ -174,7 +174,7 @@ int getpktToSend(snp_pkt_t* pkt, int* nextNode,int network_conn)
                 idx++;
                 state = 0;
                 idx = 0;
-                memcpy(pkt, &((sendpkt_arg_t*)buf)->pkt, sizeof(sendpkt_arg_t));
+                memcpy(pkt, &((sendpkt_arg_t*)buf)->pkt, sizeof(snp_pkt_t));
                 memcpy(nextNode, &((sendpkt_arg_t*)buf)->nextNodeID, sizeof(int));
                // printf("%s: out\n", __func__);
                 return 1;

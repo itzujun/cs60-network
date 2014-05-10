@@ -217,10 +217,13 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
   // else
     // printf("in func %s\n", __func__);
 
-  int data_idx = 0, is_first = 1; 
+  int data_idx = 0, is_first = 1, i = 0; 
    // mutual exclusion free for buffer operation
   // printf("%s: lock\n", __func__);
   pthread_mutex_lock(tcb_table[sockfd]->bufMutex);
+	int segNum = length/MAX_SEG_LEN;
+	if(length%MAX_SEG_LEN)
+	  segNum++;
   do {
     // printf("%s: while loop, data_idx %d, seg_idx %d \n", __func__, data_idx, seg_idx);
     // create buffer node
@@ -236,6 +239,10 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     
     // write the data into seg data area
     int len = MIN(length - data_idx, MAX_SEG_LEN);
+		if(length%MAX_SEG_LEN!=0 && i==segNum-1)
+			len = length%MAX_SEG_LEN;
+		else
+			len = MAX_SEG_LEN;
     memcpy(bufNode->seg.data, data + data_idx, len);
     bufNode->seg.header.length += len;
     data_idx += len;
@@ -259,8 +266,8 @@ int srt_client_send(int sockfd, void* data, unsigned int length) {
     // char testOutPut[MAX_SEG_LEN + 1];
     // strcat(testOutPut, "\0");
     // puts(testOutPut);
-
-  } while(data_idx < length);
+    i++;
+  } while(i < segNum);
 
   sendBuf_instantSend(tcb_table[sockfd]);
   pthread_mutex_unlock(tcb_table[sockfd]->bufMutex);
@@ -567,8 +574,9 @@ void *sendBuf_timer(void* c_port) {
         if(snp_sendseg(overlay_conn, tcb->svr_nodeID, &bufPtr->seg) < 0)
           printf("err in %s: snp_sendseg fail \n", __func__);
         else {
+          printf("<func: %s> send data with seqNum: %d\n", __func__, tcb->sendBufunSent->seg.header.seq_num);
           bufPtr->sentTime = (unsigned int)time(NULL);
-          }
+        }
       }
       tcb->sendBufunSent = bufPtr->next;
       bufPtr = bufPtr->next;
