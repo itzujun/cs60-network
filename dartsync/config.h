@@ -2,5 +2,9 @@
 #define DARTSYNCCONFIG
 
 #define P2P_LISTENING_PORT 3100
+#define P2P_DOWNLOAD_PORT 4100
+#define P2P_DOWNLOAD_PORT_MAX 5100
+#define PIECE_SIZE 1024 // as byte
+#define OPEN_FILE_TIMEOUT 5
 
 #endif
