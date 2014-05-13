@@ -1,0 +1,6 @@
+#ifndef DARTSYNCCONFIG
+#define DARTSYNCCONFIG
+
+#define P2P_LISTENING_PORT 3100
+
+#endif
