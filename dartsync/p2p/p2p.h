@@ -43,6 +43,8 @@ typedef struct p2p_pieceTable{
   char* name;
   // size
   int size;
+  // file timestamp
+  unsigned long file_time_stamp;
   // count current pieces
   int piecesDone;
   // store total pieces
@@ -81,7 +83,7 @@ int getAvailablePort();
 
 // pTable related functions
 int getPieceFromFile(char* piece, P2PInfo req);
-int getPieceToDownload(int &pNum, pEntry* myPieces);
+int getPieceToTransfer(int &pNum, pEntry* myPieces);
 int initMyPieces(pEntry myPieces, P2PInfo* req);
 int addMyPieces2pTable(pEntry myPieces);
 pEntry* getMyPieces(char* name);
@@ -112,6 +114,6 @@ typedef struct node{
   char *newpeerip;
 }Node,*pNode;
 
-int getPeerIPFromFT(char* peerIP, char* filename);
+int getPeerIPFromPT(char* peerIP, char* filename);
 
 #endif

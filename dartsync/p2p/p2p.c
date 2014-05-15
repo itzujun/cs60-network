@@ -100,12 +100,11 @@ void* p2p_download(void* arg) {
   }
 
   // find a port that is available
-  if((req->srcPort = getAvailablePort()) < 0) {
+  if(getAvailablePort(downloadSock, req->srcPort) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--getAvailablePort fail.\n"
       , __FILE__, __func__); 
     return;
   }
-
 
   if((reqSock = connectToRemote(req->destIp, req->destPort)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--connectToRemote fail.\n"
@@ -123,10 +122,13 @@ void* p2p_download(void* arg) {
 
   close(reqSock);
 
+  peer_table_add(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
+
   if(recv(downloadSock, piece, PIECE_SIZE, 0) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--recv from %s fail.\n"
       , __FILE__, __func__, req->srcIp);
     close(downloadSock);
+    peer_table_rm(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
     return;
   }
 
@@ -142,6 +144,7 @@ void* p2p_download(void* arg) {
     }
   }
 
+  peer_table_rm(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
   free(req);
   return;
 }
@@ -173,13 +176,13 @@ void* p2p_download_start(void* arg) {
   // @TODO: tell didi to implement it, 
   // get the next peer that is available, 
   // if no peer avaiable, sleep and wait
-    if(getPieceToDownload(pNum, myPieces) < 0){
+    if(getPieceToTransfer(pNum, myPieces) < 0){
       printf("%s:\t\t NO PIECE AVAILABLE, WAIT %ds\n", __func__, WAIT_PIECE_INTERVAL);
       sleep(WAIT_PIECE_INTERVAL);
       continue;
     }
 
-    if(getPeerIPFromFT(peerIP, req->name) < 0){
+    if(getPeerIPFromPT(peerIP, req->name) < 0){
     // no one is available currently
       printf("%s:\t\t NO PEER AVAILABLE, WAIT %ds\n", __func__, WAIT_PEER_INTERVAL);
       sleep(WAIT_PEER_INTERVAL);
@@ -288,11 +291,11 @@ int p2p_assemble(pEntry* myPieces) {
   return 1;
 }
 
-
 /****************************************************
 ******************helper functions*******************
 *****************************************************/
-int getAvailablePort() {
+
+int getAvailablePort(int &sock, int &port) {
   int cnt = 0
   while(!EXIT_SIG && cnt < (P2P_DOWNLOAD_PORT_MAX - P2P_DOWNLOAD_PORT) 
     && (downloadSock = listenSock_setup(downloadPort)) < 0 ) {
@@ -300,12 +303,16 @@ int getAvailablePort() {
       downloadPort = P2P_DOWNLOAD_PORT;
     cnt++;
   }
-  if(cnt >= (P2P_DOWNLOAD_PORT_MAX - P2P_DOWNLOAD_PORT) )
+  if(cnt >= (P2P_DOWNLOAD_PORT_MAX - P2P_DOWNLOAD_PORT) ) {
     return -1;
-  else
-    return downloadPort++;
+  }
+  else{
+    port = downloadPort;
+    sock = downloadSock
+    downloadPort++;
+    return 1;
+  }
 }
-
 
 int initMyPieces(pEntry myPieces, P2PInfo* req) {
   int i;
@@ -491,7 +498,7 @@ int getPieceFromFile(char* piece, P2PInfo req) {
   return 1;
 }
 
-int getPieceToDownload(int &pNum, pEntry* myPieces) {
+int getPieceToTransfer(int &pNum, pEntry* myPieces) {
   int idx;
   for(idx = 0; idx < totalPieces; idx++) {
     if(myPieces->pieces[idx] == UNTOUCHED) {
