@@ -10,10 +10,12 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <ifaddrs.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#include "../common/config.h"
+#include "p2p.h"
 
-int upthreadCnt = 0, downthreadCnt = 0;
+int upthreadCnt = 0;
 int EXIT_SIG = 0;
 pthread_t downThreads[MAX_THREAD_NUM];
 pthread_t upThreads[MAX_THREAD_NUM];
@@ -28,6 +30,7 @@ steps:
 */
 void* p2p_listening(void* arg) {
   int listenSock = listenSock_setup(P2P_LISTENING_PORT);
+  int reqSock;
   char recvBuff[sizeof(P2PInfo)];
   struct sockaddr_in client_addr;
   socklen_t length = sizeof(client_addr);
@@ -36,11 +39,11 @@ void* p2p_listening(void* arg) {
   bzero(&upThreads, sizeof(pthread_t) * MAX_THREAD_NUM);
   while(!EXIT_SIG) {
     printf("%s:\t\t START LISTENING...\n", __func__);
-    int reqSock = accept(server_socket, (struct sockaddr*) &client_addr, &length);
+    reqSock = accept(listenSock, (struct sockaddr*) &client_addr, &length);
     if (reqSock < 0) {
       fprintf(stderr, "--err in file %s func %s: \n--server accept failed!\n"
-        , __FILE__, __func__, port);
-      return -1;
+        , __FILE__, __func__);
+      return;
     }
 
     if(recv(reqSock, recvBuff, sizeof(P2PInfo), 0) < 0) {
@@ -56,7 +59,7 @@ void* p2p_listening(void* arg) {
     } 
 
     printf("%s:\t\t REQUEST RECEVIED\n", __func__);
-    if(startUpThread(upThreads, upthreadCnt, recvBuff) < 0) {
+    if(startUpThread(upThreads, recvBuff) < 0) {
       fprintf(stderr, "--warning in file %s func %s: \n--no avaiable thread slots.\n"
         , __FILE__, __func__);
       continue;
@@ -90,7 +93,7 @@ void* p2p_download(void* arg) {
   P2PInfo* req = (P2PInfo*)arg;
   pEntry* myPieces;
   char piece[PIECE_SIZE];
-  int downloadSock;
+  int downloadSock, listenSock;
   int reqSock;
 
   if((myPieces = getMyPieces(req->name)) == NULL) {
@@ -100,13 +103,13 @@ void* p2p_download(void* arg) {
   }
 
   // find a port that is available
-  if(getAvailablePort(downloadSock, req->srcPort) < 0) {
+  if(getAvailablePort(&listenSock, &req->srcPort) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--getAvailablePort fail.\n"
       , __FILE__, __func__); 
     return;
   }
 
-  if((reqSock = connectToRemote(req->destIp, req->destPort)) < 0) {
+  if((reqSock = connectToRemote(req->destIP, req->destPort)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--connectToRemote fail.\n"
       , __FILE__, __func__); 
     close(reqSock);
@@ -115,20 +118,34 @@ void* p2p_download(void* arg) {
 
   if (send(reqSock, req, sizeof(P2PInfo), 0) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--send to %s fail.\n"
-      , __FILE__, __func__, req->srcIp); 
+      , __FILE__, __func__, req->srcIP); 
     close(reqSock);
     return;
   }
 
   close(reqSock);
 
-  peer_table_add(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
+  peer_table_add(req->destIP, req->name, req->file_time_stamp, downloadSock, reqSock);
+
+  if ((downloadSock = accept(listenSock, (struct sockaddr*) &client_addr, &length)) < 0) {
+    fprintf(stderr, "--err in file %s func %s: \n--downloader accept failed!\n"
+      , __FILE__, __func__);
+    return;
+  }
 
   if(recv(downloadSock, piece, PIECE_SIZE, 0) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--recv from %s fail.\n"
-      , __FILE__, __func__, req->srcIp);
+      , __FILE__, __func__, req->srcIP);
     close(downloadSock);
-    peer_table_rm(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
+    peer_table_rm(req->destIP, req->name, req->file_time_stamp, downloadSock, reqSock);
+    return;
+  }
+
+  req->type = REQFIN;
+  if (send(downloadSock, req, sizeof(P2PInfo), 0) < 0) {
+    fprintf(stderr, "--err in file %s func %s: \n--send to %s fail.\n"
+      , __FILE__, __func__, req->srcIP); 
+    close(downloadSock);
     return;
   }
 
@@ -144,7 +161,7 @@ void* p2p_download(void* arg) {
     }
   }
 
-  peer_table_rm(req->destIp, req->name, req->file_time_stamp, downloadSock, reqSock);
+  peer_table_rm(req->destIP, req->name, req->file_time_stamp, downloadSock, reqSock);
   free(req);
   return;
 }
@@ -152,7 +169,7 @@ void* p2p_download(void* arg) {
 /**
 steps:
   add new pieces to pTable;
-
+  get piece and peer to download
 */
 void* p2p_download_start(void* arg) {
   P2PInfo* req = (P2PInfo*)arg;
@@ -167,7 +184,7 @@ void* p2p_download_start(void* arg) {
   addMyPieces2pTable(myPieces);
   // if( < 0) {
   //   fprintf(stderr, "--err in file %s func %s: \n--init download fail.\n"
-  //     , __FILE__, __func__, req->srcIp);
+  //     , __FILE__, __func__, req->srcIP);
   //   return -1;
   // }
 
@@ -176,7 +193,7 @@ void* p2p_download_start(void* arg) {
   // @TODO: tell didi to implement it, 
   // get the next peer that is available, 
   // if no peer avaiable, sleep and wait
-    if(getPieceToTransfer(pNum, myPieces) < 0){
+    if(getPieceToTransfer(&pNum, myPieces) < 0){
       printf("%s:\t\t NO PIECE AVAILABLE, WAIT %ds\n", __func__, WAIT_PIECE_INTERVAL);
       sleep(WAIT_PIECE_INTERVAL);
       continue;
@@ -197,7 +214,7 @@ void* p2p_download_start(void* arg) {
     }
     initNewReq(newReq, req, pNum, peerIP, myIp);
 
-    if(startDownThread(downThreads, downthreadCnt, newReq) < 0) {
+    if(startDownThread(myPieces, newReq) < 0) {
       fprintf(stderr, "--warning in file %s func %s: \n--no avaiable thread slots.\n"
         , __FILE__, __func__); 
       sleep(WAIT_THREAD_INTERVAL);
@@ -219,7 +236,7 @@ void* p2p_upload(void* arg) {
   char recvBuff[sizeof(P2PInfo)];
   int uploadSock;
 
-  if((uploadSock = connectToRemote(req->srcIp, req->srcPort)) < 0) {
+  if((uploadSock = connectToRemote(req->srcIP, req->srcPort)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--connectToRemote fail.\n"
       , __FILE__, __func__); 
     close(uploadSock);
@@ -236,14 +253,14 @@ void* p2p_upload(void* arg) {
 
   if(send(uploadSock, piece, PIECE_SIZE, 0) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--send to %s fail.\n"
-      , __FILE__, __func__, req->srcIp); 
+      , __FILE__, __func__, req->srcIP); 
     close(uploadSock);
     return;
   }
 
   if(recv(uploadSock, recvBuff, sizeof(P2PInfo), 0) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--recv from %s fail.\n"
-      , __FILE__, __func__, req->srcIp);
+      , __FILE__, __func__, req->srcIP);
     close(uploadSock);
     return;
   }
@@ -255,9 +272,9 @@ void* p2p_upload(void* arg) {
     return;
   }
 
-  if((P2PInfo*)recvBuff->type != REQFIN) {
+  if(((P2PInfo*)recvBuff)->type != REQFIN) {
     fprintf(stderr, "--warning in file %s func %s: \n--P2PInfo type %d err.\n"
-      , __FILE__, __func__, (P2PInfo*)recvBuff->type); 
+      , __FILE__, __func__, ((P2PInfo*)recvBuff)->type); 
     close(uploadSock);
     return;
   }
@@ -275,15 +292,15 @@ steps:
 int p2p_assemble(pEntry* myPieces) {
   int filedesc;
 
-  while(!EXIT_SIG && (filedesc = open(myPieces->name, O_WRONLY | O_APPEND))) < 0) {
+  while(!EXIT_SIG && (filedesc = open(myPieces->name, O_WRONLY | O_APPEND)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--open file %s fail, retry %d later.\n"
       , __FILE__, __func__, myPieces->name, OPEN_FILE_TIMEOUT);
     sleep(OPEN_FILE_TIMEOUT);
   }
 
   if(write(filedesc, myPieces->data, myPieces->size) != myPieces->size) {
-    fprintf(stderr, "--err in file %s func %s: \n--write file error.\n"
-      , __FILE__, __func__, myPieces->name, OPEN_FILE_TIMEOUT);
+    fprintf(stderr, "--err in file %s func %s: \n--write file %s error.\n"
+      , __FILE__, __func__, myPieces->name);
     return -1;
   }
 
@@ -295,8 +312,8 @@ int p2p_assemble(pEntry* myPieces) {
 ******************helper functions*******************
 *****************************************************/
 
-int getAvailablePort(int &sock, int &port) {
-  int cnt = 0
+int getAvailablePort(int *sock, int *port) {
+  int cnt = 0, downloadSock;
   while(!EXIT_SIG && cnt < (P2P_DOWNLOAD_PORT_MAX - P2P_DOWNLOAD_PORT) 
     && (downloadSock = listenSock_setup(downloadPort)) < 0 ) {
     if(downloadPort >= P2P_DOWNLOAD_PORT_MAX)
@@ -307,20 +324,21 @@ int getAvailablePort(int &sock, int &port) {
     return -1;
   }
   else{
-    port = downloadPort;
-    sock = downloadSock
+    *port = downloadPort;
+    *sock = downloadSock;
     downloadPort++;
     return 1;
   }
 }
 
-int initMyPieces(pEntry myPieces, P2PInfo* req) {
-  int i;
+int initMyPieces(pEntry* myPieces, P2PInfo* req) {
+  int i, totalPieces;
   strcpy(myPieces->name, req->name);
   myPieces->size = req->size;
   myPieces->piecesDone = 0;
-  myPieces->totalPieces = (size % PIECE_SIZE == 0) ? 
-    size / PIECE_SIZE : size / PIECE_SIZE + 1;
+  myPieces->totalPieces = (req->size % PIECE_SIZE == 0) ? 
+    req->size / PIECE_SIZE : req->size / PIECE_SIZE + 1;
+  totalPieces = myPieces->totalPieces;
   memcpy(myPieces->req, req, sizeof(P2PInfo));
   myPieces->pieces = (int*)malloc(sizeof(int) * totalPieces);
   myPieces->peers = (int*)malloc(sizeof(int) * totalPieces);
@@ -334,7 +352,7 @@ int initMyPieces(pEntry myPieces, P2PInfo* req) {
   return 1;
 }
 
-int addMyPieces2pTable(myPieces) {
+int addMyPieces2pTable(pEntry* myPieces) {
   pEntry* pPtr = pTable;
   if(pPtr == NULL) {
     pTable = myPieces;
@@ -389,43 +407,48 @@ int writePieceData(pEntry* myPieces, char* piece, int pNum) {
   return 1;
 }
 
-int startUpThread(pthread_t* tTable, int &threadCnt, void* arg) {
+int startUpThread(pthread_t* tTable, void* arg) {
   int tryNum = 0;
-  while (pthread_create(tTable[threadCnt]), NULL, (void *) p2p_upload, (void *) arg) != 0 
+  while (pthread_create((tTable + upthreadCnt), NULL, (void *) p2p_upload, (void *) arg) != 0 
     && tryNum < MAX_THREAD_NUM) {
   fprintf(stderr, "--warning in file %s func %s: \n--creat %dth thread fail.\n"
-    , __FILE__, __func__, downthreadCnt);
+    , __FILE__, __func__, upthreadCnt);
   tryNum++;
-  threadCnt = (threadCnt + 1) % MAX_THREAD_NUM;
+  upthreadCnt = (upthreadCnt + 1) % MAX_THREAD_NUM;
 }
 
 if(tryNum < MAX_THREAD_NUM){
-    threadCnt = (threadCnt + 1) % MAX_THREAD_NUM; // move to next slot
-    printf("%s:\t\t UPLOADTHREAD AT SLOT[%d] CREATED %ds\n", __func__, threadCnt);
+    upthreadCnt = (upthreadCnt + 1) % MAX_THREAD_NUM; // move to next slot
+    printf("%s:\t\t UPLOADTHREAD AT SLOT[%d] CREATED \n", __func__, upthreadCnt);
     return 1;
   }
 
   return -1;
 }
 
-int startDownThread(pEntry* myPieces, int &threadCnt, void* arg) {
+int startDownThread(pEntry* myPieces, void* arg) {
   P2PInfo* req = (P2PInfo*)arg;
-  if (pthread_create(myPieces->threads[req->pNum]), NULL, (void *) p2p_download, (void *) arg) != 0) {
+  if (pthread_create((myPieces->threads + req->pNum), NULL, (void *) p2p_download, (void *) arg) != 0) {
   fprintf(stderr, "--warning in file %s func %s: \n--%dth piece create thread fail.\n"
-    , __FILE__, __func__, );
+    , __FILE__, __func__, req->pNum);
   return -1;
 }
 return 1;
 }
 
 int connectToRemote(char* ip, int port){
-  int sock = create_socket();
+  int sock;
+  sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock == -1) {
+    fprintf(stderr, "--err in file %s func %s: \n--could not create sock.\n"
+      , __FILE__, __func__);
+  }
   struct sockaddr_in server;
 
   server.sin_addr.s_addr = inet_addr(ip);
   server.sin_family = AF_INET;
   server.sin_port = htons(port);
-  if (connect(uploadSock, (struct sockaddr *) &server, sizeof(server)) < 0) 
+  if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) 
     return -1;
   else
     return sock;
@@ -437,7 +460,7 @@ int listenSock_setup(int port) {
   int server_socket = socket(PF_INET, SOCK_STREAM, 0);
   if (server_socket < 0) {
     fprintf(stderr, "--err in file %s func %s: \n--listen sock create failed.\n"
-      , __FILE__, __func__, port); 
+      , __FILE__, __func__); 
     return -1;
   } else {
     int opt = 1;
@@ -461,7 +484,7 @@ int listenSock_setup(int port) {
   }
 
     // listening
-  if (listen(server_socket, LISTEN_QUEUE_LENGTH)) {
+  if (listen(server_socket, LISTEN_BACKLOG)) {
     fprintf(stderr, "--err in file %s func %s: \n--Bind port %d failed.\n"
       , __FILE__, __func__, port); 
     return -1;
@@ -470,13 +493,13 @@ int listenSock_setup(int port) {
   return server_socket;
 }
 
-int getPieceFromFile(char* piece, P2PInfo req) {
+int getPieceFromFile(char* piece, P2PInfo* req) {
   int file = 0;
   int pieceLen, getLen;
 
-  if((file=open(piece->name, O_RDONLY)) < 0){
+  if((file=open(req->name, O_RDONLY)) < 0){
     fprintf(stderr, "--err in file %s func %s: \n--open file %s fails.\n"
-      , __FILE__, __func__, piece->name); 
+      , __FILE__, __func__, req->name); 
     return -1;
   }
 
@@ -498,17 +521,17 @@ int getPieceFromFile(char* piece, P2PInfo req) {
   return 1;
 }
 
-int getPieceToTransfer(int &pNum, pEntry* myPieces) {
+int getPieceToTransfer(int *pNum, pEntry* myPieces) {
   int idx;
-  for(idx = 0; idx < totalPieces; idx++) {
+  for(idx = 0; idx < myPieces->totalPieces; idx++) {
     if(myPieces->pieces[idx] == UNTOUCHED) {
-      pNum = idx;
+      *pNum = idx;
       return 1;
     }
     // although it is downloading, the thread is terminated
     if(myPieces->pieces[idx] == DOWNLOADING 
       && pthread_timedjoin_np(myPieces->threads[idx], NULL) == 0) {
-      pNum = idx;
+      *pNum = idx;
     return 1;
     }
   }
@@ -523,9 +546,9 @@ int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP, char* myIP
   newReq->pNum = pNum;
   newReq->srcPort = 0; // will be initiated later
   newReq->destPort = P2P_LISTENING_PORT; 
-  strcpy(newReq->srcIp, myIP);
+  strcpy(newReq->srcIP, myIP);
   strcpy(newReq->destIP, peerIP);
-  if(newReq->srcIp == NULL)
+  if(newReq->srcIP == NULL)
     return -1;
   else
     return 1;
@@ -588,7 +611,7 @@ int getMyIp(char* host) {
        NULL, 0, NI_NUMERICHOST);
      if (s != 0) {
        printf("getnameinfo() failed: %s\n", gai_strerror(s));
-       return NULL;
+       return 0;
      }
      if(strcmp("127.0.0.1", host) != 0 && strlen(host) <= 16){
        freeifaddrs(ifaddr);
@@ -608,4 +631,15 @@ int getMyIp(char* host) {
  }
  freeifaddrs(ifaddr);
  return -1;
+}
+
+int check_P2PMsg(char* buff) {
+  P2PInfo* req = (P2PInfo*)buff;
+  if(req->type != REQ 
+    && req->type != REQFIN 
+    && req->type != REREQ 
+    )
+    return -1;
+  else
+    return 1;
 }

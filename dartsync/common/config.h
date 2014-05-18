@@ -12,5 +12,6 @@
 #define WAIT_NET_UP_INTERVAL 5
 #define MAX_THREAD_NUM 99
 #define FILE_NAME_LEN 1024
+#define IP_LEN 16  // length of IP
 
 #endif

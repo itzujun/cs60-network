@@ -1,6 +1,9 @@
 #ifndef DARTSYNCP2P
 #define DARTSYNCP2P
-#include "config.h"
+#include <pthread.h>
+#include "../common/config.h"
+
+#define LISTEN_BACKLOG 50
 
 // P2PInfo type
 #define REQ 0
@@ -24,21 +27,23 @@ typedef struct p2p_msg{
   char name[FILE_NAME_LEN];
   // file szie
   int size;
+  // file timestamp
+  unsigned long file_time_stamp;
   // the pieceNum in the file, start from 0
   int pNum;
   // port
   int srcPort;
   int destPort;
   // ip address
-  char srcIp[NI_MAXHOST];
-  char destIp[NI_MAXHOST];
+  char srcIP[IP_LEN];
+  char destIP[IP_LEN];
 
 }P2PInfo;
 
 /**
 pieces maintain table, 
 */
-typedef struct p2p_pieceTable{
+typedef struct p2p_pieceEntry{
   // filename
   char* name;
   // size
@@ -60,7 +65,7 @@ typedef struct p2p_pieceTable{
   // the data area
   char* data;
   // pointer
-  pEntry* next;
+  struct p2p_pieceEntry* next;
 }pEntry;
 
 void* p2p_listening(void* arg);
@@ -78,24 +83,24 @@ void* p2p_download_start(void* arg);
 int listenSock_setup(int port);
 int connectToRemote(char* ip, int port);
 int check_P2PMsg(char* buff);
-char* getMyIp();
-int getAvailablePort();
+int getMyIp(char* myIP);
+int getAvailablePort(int *sock, int *port);
 
 // pTable related functions
-int getPieceFromFile(char* piece, P2PInfo req);
-int getPieceToTransfer(int &pNum, pEntry* myPieces);
-int initMyPieces(pEntry myPieces, P2PInfo* req);
-int addMyPieces2pTable(pEntry myPieces);
+int getPieceFromFile(char* piece, P2PInfo* req);
+int getPieceToTransfer(int *pNum, pEntry* myPieces);
+int initMyPieces(pEntry* myPieces, P2PInfo* req);
+int addMyPieces2pTable(pEntry* myPieces);
 pEntry* getMyPieces(char* name);
 int writePieceData(pEntry* myPieces, char* piece, int pNum);
 int rmMyPieces(pEntry* myPieces);
 
 // thread related functions
-int startDownThread(pEntry* myPieces, int &threadCnt, void* arg);
-int startUpThread(pthread_t* tTable, int &threadCnt, void* arg);
+int startUpThread(pthread_t* tTable, void* arg);
+int startDownThread(pEntry* myPieces, void* arg);
 
 // P2PInfo related
-int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP);
+int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP, char* myIP);
 
 /**********some temporate stuff for testing************/
 //each file can be represented as a node in file table
@@ -115,5 +120,7 @@ typedef struct node{
 }Node,*pNode;
 
 int getPeerIPFromPT(char* peerIP, char* filename);
+void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
+void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
 
 #endif
