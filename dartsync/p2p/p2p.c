@@ -95,6 +95,8 @@ void* p2p_download(void* arg) {
   char piece[PIECE_SIZE];
   int downloadSock, listenSock;
   int reqSock;
+  struct sockaddr_in client_addr;
+  socklen_t length = sizeof(client_addr);
 
   if((myPieces = getMyPieces(req->name)) == NULL) {
     fprintf(stderr, "--err in file %s func %s: \n--getMyPieces fail.\n"
@@ -642,4 +644,14 @@ int check_P2PMsg(char* buff) {
     return -1;
   else
     return 1;
+}
+
+int getPeerIPFromPT(char* peerIP, char* filename) {
+  return 1;
+}
+void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock) {
+
+}
+void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock) {
+  
 }
