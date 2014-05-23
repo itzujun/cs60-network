@@ -94,6 +94,7 @@ int addMyPieces2pTable(pEntry* myPieces);
 pEntry* getMyPieces(char* name);
 int writePieceData(pEntry* myPieces, char* piece, int pNum);
 int rmMyPieces(pEntry* myPieces);
+int  handleUpdateOrDelete(pEntry* myPieces);
 
 // thread related functions
 int startUpThread(pthread_t* tTable, void* arg);
@@ -122,5 +123,23 @@ typedef struct node{
 int getPeerIPFromPT(char* peerIP, char* filename);
 void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
 void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
+
+//each file can be represented as a node in file table
+typedef struct node{
+//the size of the file
+  int size;
+//the name of the file
+  char *name;
+//the timestamp when the file is modified or created
+  unsigned long int timestamp;
+//busy flag
+  int busy;
+//pointer to build the linked list
+  struct node *pNext;
+//for the file table on peers, it is the ip address of the peer
+//for the file table on tracker, it records the ip of all peers which has the
+//newest edition of the file
+  char *newpeerip;
+}Node;
 
 #endif

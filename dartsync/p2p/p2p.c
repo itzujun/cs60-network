@@ -182,6 +182,7 @@ void* p2p_download_start(void* arg) {
   bzero(&downThreads, sizeof(pthread_t) * MAX_THREAD_NUM);
 
 // creat a new piece, return the piece pointer
+  handleUpdateOrDelete(myPieces);
   initMyPieces(myPieces, req);
   addMyPieces2pTable(myPieces);
   // if( < 0) {
@@ -201,7 +202,7 @@ void* p2p_download_start(void* arg) {
       continue;
     }
 
-    if(getPeerIPFromPT(peerIP, req->name) < 0){
+    if(getPeerIPFromFT(peerIP, req->name) < 0){
     // no one is available currently
       printf("%s:\t\t NO PEER AVAILABLE, WAIT %ds\n", __func__, WAIT_PEER_INTERVAL);
       sleep(WAIT_PEER_INTERVAL);
@@ -245,7 +246,7 @@ void* p2p_upload(void* arg) {
     return;
   }
 
-// @TODO: maybe a locker from file monitor
+  // @TODO: maybe a locker from file monitor
   if(getPieceFromFile(piece, req) < 0){
     fprintf(stderr, "--err in file %s func %s: \n--getPieceFromFile %s fail.\n"
       , __FILE__, __func__, req->name); 
@@ -313,6 +314,11 @@ int p2p_assemble(pEntry* myPieces) {
 /****************************************************
 ******************helper functions*******************
 *****************************************************/
+
+// handle situation where new status come while downloading
+int  handleUpdateOrDelete(pEntry* myPieces) {
+  return 1;
+}
 
 int getAvailablePort(int *sock, int *port) {
   int cnt = 0, downloadSock;
@@ -653,5 +659,5 @@ void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock,
 
 }
 void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock) {
-  
+
 }
