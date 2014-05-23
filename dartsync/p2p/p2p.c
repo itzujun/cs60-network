@@ -652,7 +652,7 @@ int check_P2PMsg(char* buff) {
     return 1;
 }
 
-int getPeerIPFromPT(char* peerIP, char* filename) {
+int getPeerIPFromFT(char* peerIP, char* filename) {
   return 1;
 }
 void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock) {
