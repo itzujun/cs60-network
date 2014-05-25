@@ -47,7 +47,7 @@ pieces maintain table,
 */
 typedef struct p2p_pieceEntry{
   // filename
-  char* name;
+  char name[FILE_NAME_MAX_LEN];
   // size
   int size;
   // file timestamp

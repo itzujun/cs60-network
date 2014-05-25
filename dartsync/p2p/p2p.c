@@ -189,11 +189,6 @@ void* p2p_download_start(void* arg) {
   handleUpdateOrDelete(myPieces);
   initMyPieces(myPieces, req);
   addMyPieces2pTable(myPieces);
-  // if( < 0) {
-  //   fprintf(stderr, "--err in file %s func %s: \n--init download fail.\n"
-  //     , __FILE__, __func__, req->srcIP);
-  //   return -1;
-  // }
 
 // start multi thread downloading
   while(!EXIT_SIG && myPieces->piecesDone < myPieces->totalPieces) {
@@ -228,6 +223,9 @@ void* p2p_download_start(void* arg) {
       continue;
     }
   }
+  free(fte);
+  free(myPieces);
+  free(req);
   return NULL;
 }
 
@@ -346,6 +344,7 @@ int getAvailablePort(int *sock, int *port) {
 
 int initMyPieces(pEntry* myPieces, P2PInfo* req) {
   int i, totalPieces;
+  puts(req->name);
   strcpy(myPieces->name, req->name);
   myPieces->size = req->size;
   myPieces->piecesDone = 0;
