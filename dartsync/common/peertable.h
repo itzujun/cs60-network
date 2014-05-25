@@ -39,7 +39,7 @@ peer_peer_t * peer_peertable_tail;
 pthread_mutex_t * peer_peertable_mutex; // mutex for peer table
 
 
-//apend peer table
+//append tracker side peer table
 void appendPeerTable(tracker_peer_t * newEntry);
 void updatePeerTable(tracker_peer_t * oldEntry,tracker_peer_t*newEntry);
 //find peer by ip
@@ -55,4 +55,9 @@ void printPeerTable();
 
 int updatePeerTimeStamp(char* pkt, unsigned long timestamp);
 void initPeerPeerTable();
+
+// two peer side peer table functions added by junjie
+void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock);
+void peer_peertable_rm(char* ip, char* name);
+int peer_peertable_found(char* ip, char* name);
 #endif

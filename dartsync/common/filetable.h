@@ -27,7 +27,5 @@ void appendFileEntry(Node * newEntry);
 void updateFileEntry(Node* oldEntry, Node * newEntry);
 Node* deleteFileEntry(char* name);
 void printFileTable();
-
-
-
+int getIPFromFfiletable(char* peerIP, char* filename);
 #endif

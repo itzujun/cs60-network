@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/time.h>
+#include "peertable.h"
 
 void initFileTable(){
 	filetable_head = NULL;
@@ -139,3 +140,28 @@ void printFileTable(){
 // 	pthread_mutex_unlock(file_table_mutex);
 // }
 
+int getIPFromFfiletable(char* peerIP, char* filename) {
+	int i;
+	// I copy the following code from findFileEntryByName
+	// because of the lock issue
+ 	pthread_mutex_lock(file_table_mutex);
+	Node * itr = filetable_head;
+	while(itr){
+		if(strcmp(filename, itr -> name) == 0){
+ 			pthread_mutex_unlock(file_table_mutex);
+			break;
+		}
+		itr = itr->pNext;
+	}
+
+	for(i = 0; i < MAX_PEER_NUM; i++ ) {
+		if(itr->newpeerip[i] != 0 
+			&& peer_peertable_found(filename, itr->newpeerip[i]) < 0) {
+			memcpy(peerIP, itr->newpeerip[i], IP_LEN);
+ 			pthread_mutex_unlock(file_table_mutex);
+			return 1;
+		}
+	}
+ 	pthread_mutex_unlock(file_table_mutex);
+	return -1;
+}

@@ -1,10 +1,10 @@
 
-CC=gcc
-CFLAGS=-Wall -g -pthread
-TARGET1=mypeer
-TARGET2=mytracker
-OBJ1=peer/peer.o common/pkt.o common/peertable.o common/filetable.o inotify/inotify_watch.o inotify/inotify_utils.o inotify/event_queue.o
-OBJ2=tracker/tracker.o common/pkt.o common/peertable.o common/filetable.o
+CC 			= gcc
+CFLAGS 	= -Wall -g -pthread
+TARGET1	= mypeer
+TARGET2	= mytracker
+OBJ1		= peer/peer.o p2p/p2p.o common/pkt.o common/peertable.o common/filetable.o inotify/inotify_watch.o inotify/inotify_utils.o inotify/event_queue.o 
+OBJ2		= tracker/tracker.o common/pkt.o common/peertable.o common/filetable.o
 
 ..c.o:
 	        $(CC) $(CFLAGS) -c $<

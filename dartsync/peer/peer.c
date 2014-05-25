@@ -15,6 +15,7 @@
 #include "../common/filetable.h"
 #include "../common/peertable.h"
 #include "../common/pkt.h"
+#include "../p2p/p2p.h"
 
 #define MAXLINE 100
 #define BASE_PORT 18080
@@ -139,12 +140,13 @@ int main(){
 			exit(-1);
 		}
 		if(pt->interval == 0) continue;
-		printf("recv ptp_tracker_t interval:%d\tpiece_len:%d\tfile_table_size:%d\n ", 
-				pt->interval, pt->piece_len,pt->file_table_size);
+			printf("recv ptp_tracker_t interval:%d\tpiece_len:%d\tfile_table_size:%d\n ", 
+					pt->interval, pt->piece_len,pt->file_table_size);
 		if(init_done ==0){
 			interval = pt->interval;
 			piece_len = pt->piece_len;
-			pthread_create(&ptp_listening_thread,NULL,ptp_listening,NULL);
+				//call p2p_listening thread by junjie
+			pthread_create(&ptp_listening_thread,NULL,p2p_listening,NULL);
 			//start file_monitor thread by mengling
 			pthread_create(&file_monitor_thread,NULL,file_monitor,NULL);
 			pthread_create(&keep_alive_thread,NULL,keep_alive,NULL);
@@ -153,7 +155,7 @@ int main(){
 		}
 		//start downloading if needed
 		int i;
-		Node* fte = (Node*)malloc(sizeof(Node));;
+		Node* fte = (Node*)malloc(sizeof(Node));
 		if(fte == NULL) return -1;
 		for(i=0;i<pt->file_table_size;i++){
 			bzero(fte,sizeof(Node));
@@ -173,8 +175,8 @@ int main(){
 
 			if(!is_updated){
 				pthread_t ptp_transfer_thread;
-				//call ptp_transder thread by junjie
-				pthread_create(&ptp_transfer_thread,NULL,ptp_transfer,(void*)fte);
+				//call p2p_download_start thread by junjie
+				pthread_create(&ptp_transfer_thread,NULL,p2p_download_start,(void*)fte);
 			}
 		}
 		//deleting if needed

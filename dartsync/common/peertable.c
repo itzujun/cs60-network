@@ -194,7 +194,6 @@ void deleteDeadPeers(long currentTime){
 // }
 
 
-
 void printPeerTable(){
 	pthread_mutex_lock(peer_table_mutex);
 	printf("===========peer table===========\n");
@@ -205,4 +204,95 @@ void printPeerTable(){
 	}
 	printf("================================\n");
 	pthread_mutex_unlock(peer_table_mutex);
+}
+
+// the following functions is for peer side p table -- junjie
+void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock) {
+	peer_peer_t * newEntry = malloc(sizeof(peer_peer_t));
+	memset(newEntry, 0, sizeof(peer_peer_t));
+	strcpy(newEntry -> file_name, name); // set name
+	memcpy(newEntry -> ip, ip, IP_LEN); // set ip
+	newEntry -> file_time_stamp = timestamp;
+	newEntry -> sockfd = sock;
+	newEntry -> next = NULL;
+
+	//append to peertable
+	pthread_mutex_lock(peer_peertable_mutex);
+	if(peer_peertable_head == NULL){
+		peer_peertable_head = newEntry;
+		peer_peertable_tail = newEntry;
+	}else{
+		peer_peertable_tail -> next = newEntry;
+		peer_peertable_tail = newEntry;
+	}
+	pthread_mutex_unlock(peer_peertable_mutex);
+	printPeerTable();
+}
+
+void peer_peertable_rm(char* ip, char* name) {
+	peer_peer_t * ptr = peer_peertable_head;
+	if(peer_peertable_head == NULL) {
+    fprintf(stderr, "--err in file %s func %s: \n--peer_peertable is empty.\n"
+      , __FILE__, __func__);
+    return;
+	}
+
+	pthread_mutex_lock(peer_peertable_mutex);
+	// if it is at the head
+	if(strcmp(ptr->file_name, name) == 0 && memcpy(ptr->ip, ip, IP_LEN)) {
+		// if there is only one in the list
+		if(peer_peertable_head == peer_peertable_tail) 
+			peer_peertable_head = peer_peertable_tail = NULL;
+		else 
+			peer_peertable_head = peer_peertable_head->next;
+		free(ptr);
+		return;
+	}
+
+	while(ptr->next != NULL) {
+		if(strcmp(ptr->next->file_name, name) == 0 && memcpy(ptr->next->ip, ip, IP_LEN)) {
+			ptr->next = ptr->next->next;
+			free(ptr->next);
+			pthread_mutex_unlock(peer_peertable_mutex);
+			return;
+		}
+	}
+	pthread_mutex_unlock(peer_peertable_mutex);
+  fprintf(stderr, "--err in file %s func %s: \n--peer_peer_table is empty.\n"
+    , __FILE__, __func__);
+  return;
+}
+
+int peer_peertable_found(char* ip, char* name) { 
+	peer_peer_t * ptr = peer_peertable_head;
+	if(peer_peertable_head == NULL) {
+    fprintf(stderr, "--err in file %s func %s: \n--peer_peertable is empty.\n"
+      , __FILE__, __func__);
+    return -1;
+	}
+
+	pthread_mutex_lock(peer_peertable_mutex);
+	// if it is at the head
+	if(strcmp(ptr->file_name, name) == 0 && memcpy(ptr->ip, ip, IP_LEN)) {
+		// if there is only one in the list
+		if(peer_peertable_head == peer_peertable_tail) 
+			peer_peertable_head = peer_peertable_tail = NULL;
+		else 
+			peer_peertable_head = peer_peertable_head->next;
+		free(ptr);
+		return 0;
+	}
+
+	while(ptr->next != NULL) {
+		if(strcmp(ptr->next->file_name, name) == 0 && memcpy(ptr->next->ip, ip, IP_LEN)) {
+			ptr->next = ptr->next->next;
+			free(ptr->next);
+			pthread_mutex_unlock(peer_peertable_mutex);
+			return 0;
+		}
+	}
+	pthread_mutex_unlock(peer_peertable_mutex);
+  fprintf(stderr, "--err in file %s func %s: \n--peer_peer_table is empty.\n"
+    , __FILE__, __func__);
+  return -1;
 }
