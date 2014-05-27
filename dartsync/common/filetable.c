@@ -68,6 +68,9 @@ void updateFileEntry(Node* oldEntry, Node * newEntry){
 }
 
 void appendFileEntryNoLock(Node * newEntry){
+  const char* ext = get_filename_ext(newEntry->name);
+  if(strcmp(ext, "tmp") == 0 || strcmp(ext, "p2p") == 0)
+    return;
 	printf("appendFileEntryNoLock %s\n",newEntry->name);
 	if(filetable_tail == NULL){
 		//ll is empty
@@ -80,6 +83,10 @@ void appendFileEntryNoLock(Node * newEntry){
 	printFileTable();
 }
 void appendFileEntry(Node * newEntry){
+  const char* ext = get_filename_ext(newEntry->name);
+  if(strcmp(ext, "tmp") == 0 || strcmp(ext, "p2p") == 0)
+    return;
+
   Node* fte;
   if((fte = findFileEntryByName(newEntry->name)) != NULL){
     fte->status = newEntry->status;
@@ -178,5 +185,12 @@ int getIPFromFfiletable(char* peerIP, char* filename , Node*itr) {
  	pthread_mutex_unlock(file_table_mutex);
 	return -1;
 }
+
+const char *get_filename_ext(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if(!dot || dot == filename) return "";
+    return dot + 1;
+}
+
 
 

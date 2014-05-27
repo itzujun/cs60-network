@@ -98,6 +98,10 @@ void handle_event (queue_entry_t event)
     }
   flags = event->inot_ev.mask & 
     ~(IN_ALL_EVENTS | IN_UNMOUNT | IN_Q_OVERFLOW | IN_IGNORED );
+    
+  const char* ext = get_filename_ext(cur_event_filename);
+  if(strcmp(ext, "tmp") == 0 || strcmp(ext, "p2p") == 0)
+    return;
 
   /* Perform event dependent handler routines */
   /* The mask is the magic that tells us what file operation occurred */
@@ -113,6 +117,7 @@ void handle_event (queue_entry_t event)
 */
       /* Subdir or file was deleted */
     case IN_DELETE:
+    
       printf ("DELETE: %s \"%s\" on WD #%i\n",
 	      cur_event_file_or_dir, cur_event_filename, cur_event_wd);
       if(strcmp(cur_event_file_or_dir, "File") == 0){
@@ -131,20 +136,19 @@ void handle_event (queue_entry_t event)
       }
       break;
 
-      /* Subdir or file was created */
+     /* Subdir or file was created */
     case IN_CREATE:
       printf ("CREATE: %s \"%s\" on WD #%i\n",
 	      cur_event_file_or_dir, cur_event_filename, cur_event_wd);
       if(strcmp(cur_event_file_or_dir,"Dir") == 0){
 	      watch_dir(inotify_fd,cur_event_filename,IN_ALL_EVENTS);
       }else{
-	      Node* newEntry = createNode(cur_event_filename,DONE);
-	      if(newEntry!=NULL){
-	      		appendFileEntry(newEntry);
-			      //needUpdate =1;
-			      sendFileUpdate();
-			
-	      }
+        Node* newEntry = createNode(cur_event_filename, DONE);
+        if(newEntry!=NULL){
+        		appendFileEntry(newEntry);
+		        //needUpdate =1;
+		        sendFileUpdate();
+        }
 	      //free(newEntry);
       }
       break;
@@ -423,10 +427,16 @@ Node* createNode(char *cur_event_filename,int status){
 	      memcpy(newEntry->newpeerip, my_ip,IP_LEN);
 	      newEntry->peer_ip_num=1;
 	      newEntry->status = status;
-	      newEntry->action_time = getcurrentTime();
+	      newEntry->action_time = getCurrentTime();
 	      return newEntry;
 }
 
+
+const char *get_filename_ext(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if(!dot || dot == filename) return "";
+    return dot + 1;
+}
 
 
 

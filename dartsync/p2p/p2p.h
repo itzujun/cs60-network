@@ -62,8 +62,6 @@ typedef struct p2p_pieceEntry{
   P2PInfo* req;
   // keep track of which one is done
   int* pieces;
-  // keep track of which peer is using
-  int* peers;
   // thread handlers
   pthread_t* threads;
   // the data area

@@ -4,7 +4,7 @@
 #include "../common/constants.h"
 #include "../common/filetable.h"
 #include "../common/peertable.h"
-#include "../common/pkt.c"
+#include "../common/pkt.h"
 
 #define LISTEN_BACKLOG 50
 

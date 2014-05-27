@@ -176,6 +176,9 @@ int main(){
 				if(strcmp(p->name,fte->name)==0 ){
 				  if(fte->status == REMOVED || p->status == REMOVED){
 			      remove(p->name);
+            p -> status = REMOVED;
+            p->action_time = getCurrentTime();
+            sendFileUpdate();
 			      need_update = 0;
 				  }
 				  else if(strcmp(p->md5, fte->md5) != 0) {
@@ -188,7 +191,7 @@ int main(){
 				p=p->pNext;
 			}
 
-			if(need_update && (p == NULL || p->action_time < fte->action_time)){
+			if(need_update && (p == NULL || p->action_time <= fte->action_time)){
 				Node* newEntry = createNode(p->name,UPDATING);
     	  if(newEntry!=NULL){
 					appendFileEntry(newEntry);

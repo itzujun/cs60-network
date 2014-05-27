@@ -36,5 +36,6 @@ void updateFileEntry(Node* oldEntry, Node * newEntry);
 Node* deleteFileEntry(char* name);
 void printFileTable();
 int getIPFromFfiletable(char* peerIP, char* filename,Node*fte);
+const char *get_filename_ext(const char *filename) ;
 
 #endif

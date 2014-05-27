@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
 #include "p2p.h"
 #define MAXLINE 100
 #define _GNU_SOURCE             /* See feature_test_macros(7) */
@@ -97,7 +98,7 @@ void* p2p_download(void* arg) {
   char* piece = malloc(PIECE_SIZE);
   int reqSock;
 
-  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d WITH IP %s STARTED\n", __func__, req->name, req->pNum, req->destIp);
+  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d WITH IP %s STARTED\n", __func__, req->name, req->pNum, req->destIP);
 
 
   if((myPieces = getMyPieces(req->name)) == NULL) {
@@ -254,11 +255,9 @@ void* p2p_download_start(void* arg) {
 	pclose(fp);
 	
 	if(strncmp(buffer, fte->md5, MD5_LEN) != 0){
-		printf("first md5: %s\n second md5: %s\n", buffer, fte->md5);
-		printf("%s:\t\t MD5 NOT MATCH!!!!\n", __func__);
+		//printf("first md5: %s\n second md5: %s\n", buffer, fte->md5);
+		//printf("%s:\t\t MD5 NOT MATCH!!!!\n", __func__);
 	}
-
-  
   
   //free(fte);
   free(req);
@@ -355,7 +354,39 @@ steps:
   rm this node from pTable
 */
 int p2p_assemble(pEntry* myPieces) {
-  FILE *ofp;
+  char tmpfilename[1024], number[5];
+  FILE *ofp, *ifp;
+  int i, size;
+  myPieces->data = (char*)malloc(myPieces->size);
+  bzero(myPieces->data, myPieces->size);
+  
+  for(i = 0; i < myPieces->totalPieces; i++){
+    size = (i == myPieces->totalPieces - 1) ? 
+      myPieces->size % PIECE_SIZE : PIECE_SIZE;
+    sprintf(number,"%d",i);
+    bzero(tmpfilename, 1024);
+    strcat(tmpfilename, myPieces->name);
+    strcat(tmpfilename, ".");
+    strcat(tmpfilename, number);
+    strcat(tmpfilename, ".tmp");
+  
+    while(!EXIT_SIG && (ifp = fopen(tmpfilename, "r")) == NULL) {
+      fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
+        , __FILE__, __func__, myPieces->name, OPEN_FILE_TIMEOUT);
+      sleep(OPEN_FILE_TIMEOUT);
+    }
+
+    if(fread (myPieces->data + PIECE_SIZE * i , sizeof(char), size, ifp) != size) {
+      fprintf(stderr, "--err in file %s func %s: \n----read file %s error.\n"
+        , __FILE__, __func__, tmpfilename);
+      fclose (ifp);
+      return -1;
+    }
+
+    fclose (ifp);
+    remove(tmpfilename);
+    printf("%s:\t\t FILE %s PIECE %d ASSEMBLED\n", __func__, myPieces->name, i);
+  }
 
   while(!EXIT_SIG && (ofp = fopen(myPieces->name, "w")) == NULL) {
     fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
@@ -376,7 +407,7 @@ int p2p_assemble(pEntry* myPieces) {
   Node* pn = findFileEntryByName(myPieces->name);
   if(pn != NULL){
   	pthread_mutex_lock(file_table_mutex);
-	pn->status = DONE;
+	  pn->status = DONE;
   	pthread_mutex_unlock(file_table_mutex);
   }
 
@@ -416,6 +447,7 @@ int getAvailablePort(int *sock, int *port) {
 
 int initMyPieces(pEntry* myPieces, P2PInfo* req) {
   int i, totalPieces;
+  char number[5], tmpfilename[1024];
   strcpy(myPieces->name, req->name);
   myPieces->size = req->size;
   myPieces->piecesDone = 0;
@@ -425,14 +457,19 @@ int initMyPieces(pEntry* myPieces, P2PInfo* req) {
   myPieces->req =  (P2PInfo*)malloc(sizeof(P2PInfo));
   memcpy(myPieces->req, req, sizeof(P2PInfo));
   myPieces->pieces = (int*)malloc(sizeof(int) * totalPieces);
-  myPieces->peers = (int*)malloc(sizeof(int) * totalPieces);
   myPieces->threads = (pthread_t*)malloc(sizeof(pthread_t) * totalPieces);
-  myPieces->data = (char*)malloc(req->size);
-  bzero(myPieces->data,req->size);
+  
   myPieces->next = NULL;
   for(i = 0; i < totalPieces; i++) {
-    myPieces->pieces[i] = UNTOUCHED;
-    myPieces->peers[i] = NOTUSING;
+    sprintf(number,"%d",i);
+    strcat(tmpfilename, myPieces->name);
+    strcat(tmpfilename, ".");
+    strcat(tmpfilename, number);
+    strcat(tmpfilename, ".tmp");
+    if( (access (tmpfilename, F_OK)) == 0 )
+      myPieces->pieces[i] = DONE;
+    else
+      myPieces->pieces[i] = UNTOUCHED;
   }
   printf("%s:\t\t MYPIECES CREATED FOR SYNC, NAME %s, SIZE %dB, %d PIECES\n", __func__, myPieces->name, myPieces->size, myPieces->totalPieces);
   return 1;
@@ -485,6 +522,10 @@ int rmMyPieces(pEntry* myPieces) {
     }
     pPtr->next = pPtr->next->next;
   }
+  free(myPieces->req);
+  free(myPieces->pieces);
+  free(myPieces->threads);
+  free(myPieces->data);
   free(myPieces);
   myPieces = NULL;
   return 1;
@@ -493,7 +534,26 @@ int rmMyPieces(pEntry* myPieces) {
 int writePieceData(pEntry* myPieces, char* piece, int pNum) {
   int size = (pNum == myPieces->totalPieces - 1) ? 
     myPieces->size % PIECE_SIZE : PIECE_SIZE;
-  memcpy(myPieces->data + PIECE_SIZE*pNum  , piece, size);
+  FILE *ofp;
+  char tmpfilename[1024], number[5];
+  sprintf(number, "%d", pNum);
+  strcat(tmpfilename, myPieces->name);
+  strcat(tmpfilename, ".");
+  strcat(tmpfilename, number);
+  strcat(tmpfilename, ".tmp");
+
+  while(!EXIT_SIG && (ofp = fopen(tmpfilename, "wb")) == NULL) {
+    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
+      , __FILE__, __func__, tmpfilename, OPEN_FILE_TIMEOUT);
+    sleep(OPEN_FILE_TIMEOUT);
+  }
+
+  if(fwrite (piece , sizeof(char), size, ofp) != size) {
+    fprintf(stderr, "--err in file %s func %s: \n----write file %s error.\n"
+      , __FILE__, __func__, tmpfilename);
+    fclose (ofp);
+    return -1;
+  }
   return 1;
 }
 

@@ -188,7 +188,7 @@ int main(){
 				p=p->pNext;
 			}
 
-			if(need_update && (p == NULL || p->action_time < fte->action_time)){
+			if(need_update && (p == NULL || p->action_time <= fte->action_time)){
 				Node* newEntry = createNode(p->name,UPDATING);
     	  if(newEntry!=NULL){
 					appendFileEntry(newEntry);
