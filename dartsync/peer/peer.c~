@@ -27,7 +27,6 @@ int interval;
 int piece_len;
 char watchdir[MAXLINE];
 char my_ip[IP_LEN];
-int needUpdate = 0;
 
 int get_myip(char*myip){
 	char* hostname = malloc(MAXLINE);
@@ -151,7 +150,6 @@ int main(){
 		}
 		if(pt->interval == 0) continue;
 		printf("recv broadcast from tracker file_table_size:%d\n ", pt->file_table_size);
-		printf("hekko...\n");
 		if(init_done ==0){
 			interval = pt->interval;
 			piece_len = pt->piece_len;
@@ -165,31 +163,34 @@ int main(){
 		}
 		//start downloading if needed
 		int i;
-		printf("hello...\n");
-		dontUpdate = 1;
 		//update peer file table
-		printf("hello.2..\n");
 		for(i=0;i<pt->file_table_size;i++){
-			printf("ffkshfksh...\n");
 		  Node* fte = (Node*)malloc(sizeof(Node));
 		  if(fte == NULL) return -1;
 			bzero(fte,sizeof(Node));
 			memcpy(fte,&pt->file_table[i],sizeof(Node));
-			int is_updated = 0;
+			int need_update = 1;
 
 			Node* p =filetable_head;
 			while(p ){
-				printf("in loop1...\n");
-				if(strcmp(p->name,fte->name)==0 && strcmp(p->md5, fte->md5)== 0){
-					is_updated = 1;
+				if(strcmp(p->name,fte->name)==0 ){
+				  if(fte->status == REMOVED || p->status == REMOVED){
+			      remove(p->name);
+			      need_update = 0;
+				  }
+				  else if(strcmp(p->md5, fte->md5) != 0) {
+					  need_update = 1;
+					} else {
+					  need_update = 0;
+					}
 					break;
-				}
+				} 
 				p=p->pNext;
 			}
 
-			if(!is_updated){
+			if(need_update && (p == NULL || p->action_time < fte->action_time)){
 				Node* newEntry = createNode(p->name,UPDATING);
-    				if(newEntry!=NULL){
+    	  if(newEntry!=NULL){
 					appendFileEntry(newEntry);
 				}
 				pthread_t ptp_transfer_thread;
@@ -198,26 +199,24 @@ int main(){
 			}
 		}
 		//sendFileUpdate();
-		//deleting if needed
+		//deleting file entry if needed
 		Node* head =filetable_head;
 		while(head){
-			printf("in loop2...\n");
 			int found = 0;
 			for(i=0;i<pt->file_table_size;i++){
 				if(strcmp(head->name,pt->file_table[i].name)==0){
 					found =1;
 				}
 			}
-			if(!found){
-			  if(remove(head->name) < 0) {
+			if(!found && head->status == REMOVED){
+			  /*if(remove(head->name) < 0) {
 			    perror("remove file fail");
-			  }
-		          head = deleteFileEntry(head->name);
+			  }*/
+		     head = deleteFileEntry(head->name);
 			}else{
 				head=head->pNext;
 			}
 		}
-		dontUpdate = 0;
 
 	}
 }
@@ -255,9 +254,8 @@ void* ptp_listening(void* arg){
 
 
 void*file_monitor(void* arg){
-        pthread_t fileupdate_thread;
-        pthread_create(&fileupdate_thread,NULL,sendFileUpdate,NULL);
-	dontUpdate = 0;
+        //pthread_t fileupdate_thread;
+        //pthread_create(&fileupdate_thread,NULL,sendFileUpdate,NULL);
 	printf("inotify_watch begins\n");
 	inotify_watch(watchdir);
 	printf("inotify_watch ends\n");
@@ -297,13 +295,13 @@ void* keep_alive(void* arg){
 	free(ptpp);
 }
 
-void *sendFileUpdate(void* arg){
+void sendFileUpdate(){
 	
 	ptp_peer_t* ptpp;
 	ptpp = (ptp_peer_t*)malloc(sizeof(ptp_peer_t));
 	if(ptpp == NULL){
 		perror("malloc failure");
-		return NULL;
+		return;
 	}
 	bzero(ptpp,sizeof(ptp_peer_t));
 
@@ -311,10 +309,6 @@ void *sendFileUpdate(void* arg){
 	get_myip(ptpp->peer_ip);
 	ptpp->port = LISTENING_PORT;
 
-	while(1){
-		sleep(FILE_UPDATE_INTERVAL);
-		if(dontUpdate) continue;
-		if(!needUpdate) continue;
 		ptpp->file_table_size = getFileTableSize();
 
 		int i;
@@ -329,11 +323,11 @@ void *sendFileUpdate(void* arg){
 		int res = sendPkt_c(ptp_conn, ptpp);
 		if (res < 0) {
 			perror("sending file-update failure");;
-			return NULL;
+			return;
 		}
-		needUpdate = 0;
 		 printf("send ptp_peer_t type:%d\tpeer_ip:%s\tport:%d\tfile_table_size:%d\n",ptpp->type,
 				ptpp->peer_ip,ptpp->port,ptpp->file_table_size);
-	}
 	free(ptpp);
 }
+
+

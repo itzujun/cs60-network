@@ -54,14 +54,17 @@ Node* findFileEntryByName(char * name){
 
 void updateFileEntry(Node* oldEntry, Node * newEntry){
  	pthread_mutex_lock(file_table_mutex);
+ 	//memcpy(oldEntry, newEntry, sizeof(Node));
 	printf("updateFileEntry %s\n",newEntry->name);
 	strcpy(oldEntry->name, newEntry->name);
 	oldEntry->size = newEntry->size;
 	strcpy(oldEntry->md5, newEntry->md5);
 	oldEntry->peer_ip_num = newEntry->peer_ip_num;
+	oldEntry -> status = newEntry -> status;
+	oldEntry -> action_time = newEntry -> action_time;
 	memcpy(oldEntry->newpeerip,newEntry->newpeerip, MAX_PEER_NUM * IP_LEN);
  	pthread_mutex_unlock(file_table_mutex);
-	//printFileTable();
+	printFileTable();
 }
 
 void appendFileEntryNoLock(Node * newEntry){
@@ -74,9 +77,16 @@ void appendFileEntryNoLock(Node * newEntry){
 		filetable_tail -> pNext = newEntry;
 		filetable_tail = newEntry;
 	}
-	//printFileTable();
+	printFileTable();
 }
 void appendFileEntry(Node * newEntry){
+  Node* fte;
+  if((fte = findFileEntryByName(newEntry->name)) != NULL){
+    fte->status = newEntry->status;
+    free(newEntry);
+    printFileTable();
+    return;  
+  }
 	printf("appendFileEntry %s\n",newEntry->name);
  	pthread_mutex_lock(file_table_mutex);
 	if(filetable_tail == NULL){
@@ -121,7 +131,6 @@ Node* deleteFileEntry(char * name){
 	if (filetable_head == NULL) return NULL;
 	else if (pre == NULL) return filetable_head;
 	else return pre->pNext;
-	
 }
 
 void printFileTable(){
@@ -129,7 +138,7 @@ void printFileTable(){
  	pthread_mutex_lock(file_table_mutex);
 	Node * itr = filetable_head;
 	while(itr != NULL){
-		printf(" name: %s\tsize: %8d\tmd5: %s\tpeer_ip_num: %d\t", itr->name, itr ->size,itr->md5,itr->peer_ip_num);
+		printf(" name: %s\tsize: %8d\tmd5: %s\tpeer_ip_num: %d\t status: %d\t", itr->name, itr ->size,itr->md5,itr->peer_ip_num, itr->status);
 		int i;
 		for(i =0; i<itr->peer_ip_num;i++){
 			printf("newpeerip[%d]: %s\t",i,itr->newpeerip[i]);
@@ -159,13 +168,15 @@ int getIPFromFfiletable(char* peerIP, char* filename , Node*itr) {
  	pthread_mutex_lock(file_table_mutex);
 
 	for(i = 0; i < itr->peer_ip_num; i++ ) {
-		if(  peer_peertable_found(filename, itr->newpeerip[i]) < 0) {
+		if(  peer_peertable_found(itr->newpeerip[i],filename) < 0) {
 			memcpy(peerIP, itr->newpeerip[i], IP_LEN);
  			pthread_mutex_unlock(file_table_mutex);
 			return 1;
 		}
-		printf("%s:\t\t IP %s FOR FILE %s IS CURRENTLY IN USE\n", __func__, itr->newpeerip[i], filename);
+		//printf("%s:\t\t IP %s FOR FILE %s IS CURRENTLY IN USE\n", __func__, itr->newpeerip[i], filename);
 	}
  	pthread_mutex_unlock(file_table_mutex);
 	return -1;
 }
+
+

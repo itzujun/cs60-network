@@ -1,0 +1,335 @@
+[whaleback:dartsync] 128) mypeer 
+begin to init peertable...
+init filetable...
+watchdir : /tmp/jack
+connect tracker  hooker.cs.dartmouth.edu port 11241
+connectTracker successful
+registerTracker type 0 peer_ip 129.170.212.87 port 14332
+registerTracker successful
+keep recving pkt from tracker...
+recv broadcast from tracker file_table_size:0
+ init done! ptp_listening,file_monitor,keep_alive
+keep recving pkt from tracker...
+inotify_watch begins
+p2p_listening:		 START LISTENING...
+
+Watching /tmp/jack/ WD=1
+Watching = 1 items
+send ptp_peer_t type: 1	peer_ip:129.170.212.87	port:14332	file_table_size:0
+recv broadcast from tracker file_table_size:3
+stat failure: Bad address
+stat failure: Bad address
+ initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f2, SIZE 3168B, 4 PIECES
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f2, SIZE 3168B, 4 PIECES
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+stat failure: Bad address
+keep recving pkt from tracker...
+initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f1, SIZE 2640B, 3 PIECES
+p2p_download_start:		 0/3 PIECES DONE FOR FILE /tmp/jack/f1!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f2 PIECE 0 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f2 PIECE 0 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:8
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f2 PIECE 0 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f2 PIECE 0 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:8
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+--err in file p2p/p2p.c func p2p_download: 
+----recv name /tmp/jack/f2 piece 0 from 129.170.214.163 fail.
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f2
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 0 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f1 PIECE 0 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f1	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 0 GET:
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAA
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f1
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 0th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 1/3 PIECES DONE FOR FILE /tmp/jack/f1!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 1 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f1 PIECE 1 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f1	file_time_stamp:0sockfd:9
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 1 GET:
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAA
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f1
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 1th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 2/3 PIECES DONE FOR FILE /tmp/jack/f1!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 2 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f1 PIECE 2 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f1	file_time_stamp:0sockfd:10
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f1 PIECE 2 GET:
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+jack
+jack
+jackjack
+jackjack
+jackjack
+jackjack
+jackjack
+jackjack
+
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f1
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 2th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+CREATE: File "/tmp/jack/f1" on WD #1
+p2p_download_start:		 FILE /tmp/jack/f1 GET!
+6d5b154f913368b3b769ece2e0c39ad1  /tmp/jack/f1
+6d5b154f913368b3b769ece2e0c39ad1  /tmp/jack/f1
+appendFileEntry /tmp/jack/f1
+===========file table===========
+ name: /tmp/jack/f1	size:     2640	md5: 6d5b154f913368b3b769ece2e0c39ad1 	peer_ip_num: 1	 status: 0	newpeerip[0]: 129.170.212.87	
+================================
+===========send file update=================
+send ptp_peer_t type:2	peer_ip:129.170.212.87	port:14332	file_table_size:1
+MODIFY: File "/tmp/jack/f1" on WD #1
+CLOSE_WRITE: File "/tmp/jack/f1" on WD #1
+6d5b154f913368b3b769ece2e0c39ad1  /tmp/jack/f1
+recv broadcast from tracker file_table_size:3
+stat failure: Bad address
+stat failure: Bad address
+ keep recving pkt from tracker...
+initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f3, SIZE 2530B, 3 PIECES
+p2p_download_start:		 0/3 PIECES DONE FOR FILE /tmp/jack/f3!
+initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f2, SIZE 3168B, 4 PIECES
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 0 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f3 PIECE 0 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f3	file_time_stamp:0sockfd:11
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 0 GET:
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f3
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 0th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 1/3 PIECES DONE FOR FILE /tmp/jack/f3!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 1 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f3 PIECE 1 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f3	file_time_stamp:0sockfd:12
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 1 GET:
+OOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOO
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f3
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 1th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 2/3 PIECES DONE FOR FILE /tmp/jack/f3!
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 2 STARTED
+p2p_download:		 REQ FOR FILE /tmp/jack/f3 PIECE 2 TO 129.170.214.163 SENT
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+ip:129.170.214.163	file_name:/tmp/jack/f3	file_time_stamp:0sockfd:13
+================================
+p2p_download:		 DOWNLOAD THREAD FOR FILE /tmp/jack/f3 PIECE 2 GET:
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
+
+peer_peertable_rm  by ip:129.170.214.163	name:/tmp/jack/f3
+===========peer peer table===========
+ip:129.170.214.163	file_name:/tmp/jack/f2	file_time_stamp:0sockfd:7
+================================
+p2p_download:		 DOWNLOAD THREAD FOR 2th PIECE FINISH
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+CREATE: File "/tmp/jack/f3" on WD #1
+p2p_download_start:		 FILE /tmp/jack/f3 GET!
+a9fc6e6012d148aa5f487a17a540a9fb  /tmp/jack/f3
+a9fc6e6012d148aa5f487a17a540a9fb  /tmp/jack/f3
+appendFileEntry /tmp/jack/f3
+===========file table===========
+ name: /tmp/jack/f1	size:     2640	md5: 6d5b154f913368b3b769ece2e0c39ad1 	peer_ip_num: 1	 status: 0	newpeerip[0]: 129.170.212.87	
+ name: /tmp/jack/f3	size:     2530	md5: a9fc6e6012d148aa5f487a17a540a9fb 	peer_ip_num: 1	 status: 0	newpeerip[0]: 129.170.212.87	
+================================
+first md5: a9fc6e6012d148aa5f487a17a540a9fb  /tmp/jack/f3
+
+ second md5: ad957ab5a9439babed33a1fd0e85b2f3 
+p2p_download_start:		 MD5 NOT MATCH!!!!
+===========send file update=================
+send ptp_peer_t type:2	peer_ip:129.170.212.87	port:14332	file_table_size:2
+MODIFY: File "/tmp/jack/f3" on WD #1
+CLOSE_WRITE: File "/tmp/jack/f3" on WD #1
+a9fc6e6012d148aa5f487a17a540a9fb  /tmp/jack/f3
+recv broadcast from tracker file_table_size:3
+stat failure: Bad address
+ keep recving pkt from tracker...
+initMyPieces:		 MYPIECES CREATED FOR SYNC, NAME /tmp/jack/f2, SIZE 3168B, 4 PIECES
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+p2p_download_start:		 0/4 PIECES DONE FOR FILE /tmp/jack/f2!
+recv failure: Bad address
+
