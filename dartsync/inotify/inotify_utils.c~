@@ -22,7 +22,7 @@ extern int keep_running;
 extern int inotify_fd;
 static int watched_items;
 extern char my_ip[IP_LEN];
-extern int needUpdate;
+extern int date;
 
 /* Create an inotify instance and open a file descriptor
    to access it */

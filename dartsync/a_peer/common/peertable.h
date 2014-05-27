@@ -58,6 +58,6 @@ void initPeerPeerTable();
 
 // two peer side peer table functions added by junjie
 void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock);
-peer_peer_t* peer_peertable_rm(char* ip, char* name);
+void peer_peertable_rm(char* ip, char* name);
 int peer_peertable_found(char* ip, char* name);
 #endif

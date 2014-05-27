@@ -22,4 +22,3 @@ clean:
 	rm -rf $(OBJ1)
 	rm -rf $(OBJ2)
 	rm -rf core.*
-	rm -rf ./a_peer/core.*

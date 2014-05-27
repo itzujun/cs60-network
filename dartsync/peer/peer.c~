@@ -151,6 +151,7 @@ int main(){
 		}
 		if(pt->interval == 0) continue;
 		printf("recv broadcast from tracker file_table_size:%d\n ", pt->file_table_size);
+		printf("hekko...\n");
 		if(init_done ==0){
 			interval = pt->interval;
 			piece_len = pt->piece_len;
@@ -164,9 +165,12 @@ int main(){
 		}
 		//start downloading if needed
 		int i;
+		printf("hello...\n");
 		dontUpdate = 1;
 		//update peer file table
+		printf("hello.2..\n");
 		for(i=0;i<pt->file_table_size;i++){
+			printf("ffkshfksh...\n");
 		  Node* fte = (Node*)malloc(sizeof(Node));
 		  if(fte == NULL) return -1;
 			bzero(fte,sizeof(Node));
@@ -175,6 +179,7 @@ int main(){
 
 			Node* p =filetable_head;
 			while(p ){
+				printf("in loop1...\n");
 				if(strcmp(p->name,fte->name)==0 && strcmp(p->md5, fte->md5)== 0){
 					is_updated = 1;
 					break;
@@ -196,6 +201,7 @@ int main(){
 		//deleting if needed
 		Node* head =filetable_head;
 		while(head){
+			printf("in loop2...\n");
 			int found = 0;
 			for(i=0;i<pt->file_table_size;i++){
 				if(strcmp(head->name,pt->file_table[i].name)==0){

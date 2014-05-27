@@ -4,6 +4,7 @@
 #include "../common/constants.h"
 #include "../common/filetable.h"
 #include "../common/peertable.h"
+#include "../common/pkt.h"
 
 #define LISTEN_BACKLOG 50
 
@@ -14,7 +15,7 @@
 
 // piece status
 #define UNTOUCHED 0
-#define DONE 1
+#define P2PDONE 1
 #define DOWNLOADING 2
 #define RETRY 3
 
@@ -39,6 +40,7 @@ typedef struct p2p_msg{
   // ip address
   char srcIP[IP_LEN];
   char destIP[IP_LEN];
+  int sockfd;
 
 }P2PInfo;
 
@@ -99,7 +101,7 @@ int rmMyPieces(pEntry* myPieces);
 int  handleUpdateOrDelete(pEntry* myPieces);
 
 // thread related functions
-int startUpThread(pthread_t* tTable, void* arg);
+int startUpThread(pthread_t* tTable, int sockfd);
 int startDownThread(pEntry* myPieces, void* arg);
 
 // P2PInfo related

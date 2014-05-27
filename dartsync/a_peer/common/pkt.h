@@ -50,7 +50,4 @@ int sendPkt(int connfd, ptp_tracker_t * pkt);
 //peer side 
 int sendPkt_c(int connfd, ptp_peer_t * pkt);
 int recvPkt_c(int connfd, ptp_tracker_t * pkt);
-
-int p2pSendPkt(int connfd, char * pkt, int len);
-int p2pRecvPkt(int connfd, char * pkt, int len);
 #endif

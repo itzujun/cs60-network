@@ -75,7 +75,7 @@ tracker_peer_t * findPeerByIp(char * ip){
 		itr = itr -> next;
 	}
 	pthread_mutex_unlock(peer_table_mutex);
-	//printPeerTable();
+	printPeerTable();
 	return itr;
 }
 

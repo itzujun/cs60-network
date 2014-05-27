@@ -102,7 +102,7 @@ void* p2p_download(void* arg) {
       , __FILE__, __func__); 
     return NULL;
   }
-  myPieces->pieces[req->pNum] = DOWNLOADING;
+  myPieces->pieces[req->pNUm] = DOWNLOADING;
 
   // find a port that is available
   /*if(getAvailablePort(&listenSock, &req->srcPort) < 0) {

@@ -35,7 +35,7 @@ int updatePeerTimeStamp(char* peer_ip, unsigned long timestamp){
 		pthread_mutex_lock(peer_table_mutex);
 		peer -> last_time_stamp = timestamp;
 		pthread_mutex_unlock(peer_table_mutex);
-		//printPeerTable();
+		printPeerTable();
 		return 1;
 	}
 	return -1;
@@ -75,7 +75,7 @@ tracker_peer_t * findPeerByIp(char * ip){
 		itr = itr -> next;
 	}
 	pthread_mutex_unlock(peer_table_mutex);
-	//printPeerTable();
+	printPeerTable();
 	return itr;
 }
 
@@ -193,6 +193,7 @@ void deleteDeadPeers(long currentTime){
 // 	}
 // }
 
+
 void printPeerTable(){
 	pthread_mutex_lock(peer_table_mutex);
 	printf("===========peer table===========\n");
@@ -203,18 +204,6 @@ void printPeerTable(){
 	}
 	printf("================================\n");
 	pthread_mutex_unlock(peer_table_mutex);
-}
-void printPeerPeerTable(){
-	pthread_mutex_lock(peer_peertable_mutex);
-	printf("===========peer peer table===========\n");
-	peer_peer_t * itr = peer_peertable_head;
-	while(itr != NULL){
-		printf("ip:%s\tfile_name:%s\tfile_time_stamp:%lusockfd:%d\n", itr -> ip, itr ->file_name,
-				itr->file_time_stamp,itr->sockfd);
-		itr = itr -> next;
-	}
-	printf("================================\n");
-	pthread_mutex_unlock(peer_peertable_mutex);
 }
 
 // the following functions is for peer side p table -- junjie
@@ -237,40 +226,9 @@ void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock)
 		peer_peertable_tail = newEntry;
 	}
 	pthread_mutex_unlock(peer_peertable_mutex);
-	printPeerPeerTable();
-}
-peer_peer_t* peer_peertable_rm(char*ip,char*name){
-	printf("peer_peertable_rm  by ip:%s\tname:%s\n",ip,name);
-	pthread_mutex_lock(peer_peertable_mutex);
-	peer_peer_t * itr = peer_peertable_head;
-	if(itr == NULL) return NULL;
-	peer_peer_t * pre = NULL,*cur = NULL;
-	while(itr != NULL){
-		if(strcmp(ip,itr->ip) ==0 && strcmp(name,itr->file_name) ==0 ){
-			if(itr == peer_peertable_head){
-				cur = itr;
-				peer_peertable_head = itr->next;
-				if(peer_peertable_head == NULL)
-					peer_peertable_tail = NULL;
-			}else{
-				cur = itr;
-				pre->next = itr->next;
-				if(itr == peer_peertable_tail)
-					peer_peertable_tail = pre;
-			}
-			free(cur);
-			break;
-		}
-		pre = itr;
-		itr = itr -> next;
-	}
-	pthread_mutex_unlock(peer_peertable_mutex);
-	printPeerPeerTable();
-	if (pre == NULL) return NULL;
-	else return pre->next;
+	printPeerTable();
 }
 
-/*
 void peer_peertable_rm(char* ip, char* name) {
 	peer_peer_t * ptr = peer_peertable_head;
 	if(peer_peertable_head == NULL) {
@@ -281,7 +239,7 @@ void peer_peertable_rm(char* ip, char* name) {
 
 	pthread_mutex_lock(peer_peertable_mutex);
 	// if it is at the head
-	if(strcmp(ptr->file_name, name) == 0 && memcmp(ptr->ip, ip, IP_LEN)) {
+	if(strcmp(ptr->file_name, name) == 0 && memcpy(ptr->ip, ip, IP_LEN)) {
 		// if there is only one in the list
 		if(peer_peertable_head == peer_peertable_tail) 
 			peer_peertable_head = peer_peertable_tail = NULL;
@@ -304,10 +262,12 @@ void peer_peertable_rm(char* ip, char* name) {
     , __FILE__, __func__);
   return;
 }
-*/
+
 int peer_peertable_found(char* ip, char* name) { 
 	peer_peer_t * ptr = peer_peertable_head;
 	if(peer_peertable_head == NULL) {
+    fprintf(stderr, "--err in file %s func %s: \n--peer_peertable is empty.\n"
+      , __FILE__, __func__);
     return -1;
 	}
 

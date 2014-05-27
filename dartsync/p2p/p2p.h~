@@ -1,7 +1,10 @@
 #ifndef DARTSYNCP2P
 #define DARTSYNCP2P
 #include <pthread.h>
-#include "../common/config.h"
+#include "../common/constants.h"
+#include "../common/filetable.h"
+#include "../common/peertable.h"
+#include "../common/pkt.c"
 
 #define LISTEN_BACKLOG 50
 
@@ -12,7 +15,7 @@
 
 // piece status
 #define UNTOUCHED 0
-#define DONE 1
+#define P2PDONE 1
 #define DOWNLOADING 2
 #define RETRY 3
 
@@ -24,7 +27,7 @@
 typedef struct p2p_msg{
   int type;
   //the name of the file
-  char name[FILE_NAME_LEN];
+  char name[FILE_NAME_MAX_LEN];
   // file szie
   int size;
   // file timestamp
@@ -37,6 +40,7 @@ typedef struct p2p_msg{
   // ip address
   char srcIP[IP_LEN];
   char destIP[IP_LEN];
+  int sockfd;
 
 }P2PInfo;
 
@@ -45,7 +49,7 @@ pieces maintain table,
 */
 typedef struct p2p_pieceEntry{
   // filename
-  char* name;
+  char name[FILE_NAME_MAX_LEN];
   // size
   int size;
   // file timestamp
@@ -97,32 +101,32 @@ int rmMyPieces(pEntry* myPieces);
 int  handleUpdateOrDelete(pEntry* myPieces);
 
 // thread related functions
-int startUpThread(pthread_t* tTable, void* arg);
+int startUpThread(pthread_t* tTable, int sockfd);
 int startDownThread(pEntry* myPieces, void* arg);
 
 // P2PInfo related
 int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP, char* myIP);
 
-/**********some temporate stuff for testing************/
-//each file can be represented as a node in file table
-typedef struct node{
-//the size of the file
-  int size;
-//the name of the file
-  char *name;
-//the timestamp when the file is modified or created
-  unsigned long int timestamp;
-//pointer to build the linked list
-  struct node *pNext;
-//for the file table on peers, it is the ip address of the peer
-//for the file table on tracker, it records the ip of all peers which has the
-//newest edition of the file
-  char *newpeerip;
-}Node,*pNode;
+// /**********some temporate stuff for testing************/
+// //each file can be represented as a node in file table
+// typedef struct node{
+// //the size of the file
+//   int size;
+// //the name of the file
+//   char *name;
+// //the timestamp when the file is modified or created
+//   unsigned long int timestamp;
+// //pointer to build the linked list
+//   struct node *pNext;
+// //for the file table on peers, it is the ip address of the peer
+// //for the file table on tracker, it records the ip of all peers which has the
+// //newest edition of the file
+//   char *newpeerip;
+// }Node,*pNode;
 
-int getPeerIPFromFT(char* peerIP, char* filename);
-void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
-void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
+// int getPeerIPFromFT(char* peerIP, char* filename);
+// void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
+// void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
 
 
 #endif
