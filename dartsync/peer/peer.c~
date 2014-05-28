@@ -19,6 +19,12 @@
 #include "../p2p/p2p.h"
 #include "../inotify/inotify_utils.h"
 
+ #define handle_error_en(en, msg) \
+         do { errno = en; perror(msg); exit(EXIT_FAILURE); } while (0)
+
+ #define handle_error(msg) \
+         do { perror(msg); exit(EXIT_FAILURE); } while (0)
+
 #define MAXLINE 100
 #define BASE_PORT 18080
 
@@ -62,7 +68,7 @@ int connectTracker(){
 	strcpy(tracker,get_from_config("tracker"));
 	struct sockaddr_in servaddr;
 	struct hostent *hostInfo;
-
+	printf("tracker hostname: %s\n", tracker);
 	hostInfo = gethostbyname(tracker);
 	if(hostInfo == NULL) {
 		perror("gethostbyname!\n");
@@ -98,7 +104,7 @@ int registerTracker(){
 	*/
 	int res = sendPkt_c(ptp_conn, ptpp);
 	if (res < 1) {
-		perror("reigster failure");;
+		perror("reigster failure");
 		return -1;
 	}
 	printf("registerTracker type %d peer_ip %s port %d\n",
@@ -107,6 +113,10 @@ int registerTracker(){
 	return 0;
 }
 void sigintHanlder(){
+  printf("exit sig get!\n");
+  char cmd[100];
+  sprintf(cmd, "killall -9 mypeer");
+  system(cmd); 
 	exit(-1);
 }
 
@@ -164,42 +174,59 @@ int main(){
 		//start downloading if needed
 		int i;
 		//update peer file table
+
 		for(i=0;i<pt->file_table_size;i++){
 		  Node* fte = (Node*)malloc(sizeof(Node));
 		  if(fte == NULL) return -1;
 			bzero(fte,sizeof(Node));
-			memcpy(fte,&pt->file_table[i],sizeof(Node));
+			memcpy(fte, &pt->file_table[i], sizeof(Node));
 			int need_update = 1;
-
+		  
+		  if(strlen(fte->name) == 0) {
+		    puts("!!!!!!!!!!!!!!!EMPTY ENTRY!!!!!!!!!!!!!!!!!");
+		    continue;
+		  }
+		  
 			Node* p =filetable_head;
 			while(p ){
 				if(strcmp(p->name,fte->name)==0 ){
 				  if(fte->status == REMOVED || p->status == REMOVED){
 			      remove(p->name);
-            p -> status = REMOVED;
-            p->action_time = getCurrentTime();
-            sendFileUpdate();
 			      need_update = 0;
 				  }
-				  else if(strcmp(p->md5, fte->md5) != 0) {
-					  need_update = 1;
-					} else {
-					  need_update = 0;
-					}
 					break;
 				} 
 				p=p->pNext;
 			}
 
-			if(need_update && (p == NULL || p->action_time <= fte->action_time)){
-				Node* newEntry = createNode(p->name,UPDATING);
-    	  if(newEntry!=NULL){
+			if(need_update && (p == NULL || p->action_time < fte->action_time)){
+			  printf(">>>>>>>>>>>>>>>>>>>>> goint to update file %s\n", fte->name);
+				Node* newEntry = createNode(p->name, UPDATING, fte->action_time);
+  			if(newEntry!=NULL){
 					appendFileEntry(newEntry);
 				}
 				pthread_t ptp_transfer_thread;
-				//call p2p_download_start thread by junjie
-				pthread_create(&ptp_transfer_thread,NULL,p2p_download_start,(void*)fte);
+				while(pthread_create(&ptp_transfer_thread,NULL,p2p_download_start,(void*)fte) < 0)
+				{
+				    sleep(WAIT_FOR_THREAD_SRC);
+				}
+        if (s != 0) {
+          fprintf(stderr, "--warning in file %s func %s: \n----no thread created for %s &&&&&&&&&&&&&&&&&&&&&&.\n"
+            , __FILE__, __func__, fte->name); 
+           handle_error_en(s, "pthread_create &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&");
+         }
+			} else {
+			  puts("-----------------------this file don't update---------------------------");
+  			Node* itr = fte;
+			  printf(" name: %s\tsize: %8d\tmd5: %s\tpeer_ip_num: %d\t status: %d\t act_time: %lu\t", itr->name, itr ->size,itr->md5,itr->peer_ip_num, itr->status, itr->action_time);
+		    int i;
+		    for(i =0; i<itr->peer_ip_num;i++){
+			    printf("newpeerip[%d]: %s\t",i,itr->newpeerip[i]);
+		    }
+		    printf("\n");
 			}
+			
+			
 		}
 		//sendFileUpdate();
 		//deleting file entry if needed
@@ -299,7 +326,6 @@ void* keep_alive(void* arg){
 }
 
 void sendFileUpdate(){
-	
 	ptp_peer_t* ptpp;
 	ptpp = (ptp_peer_t*)malloc(sizeof(ptp_peer_t));
 	if(ptpp == NULL){

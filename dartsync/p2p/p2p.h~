@@ -23,6 +23,8 @@
 #define NOTUSING 0
 #define USING 1
 
+typedef struct timespec TS;
+
 // control msg that handle p2p connection
 typedef struct p2p_msg{
   int type;
@@ -62,14 +64,24 @@ typedef struct p2p_pieceEntry{
   P2PInfo* req;
   // keep track of which one is done
   int* pieces;
-  // keep track of which peer is using
-  int* peers;
+  // timestamp of each piece
+  char** peerIPs;
+  // timestamp of each piece
+  TS* pTimes;
   // thread handlers
   pthread_t* threads;
+  // lock
+  pthread_mutex_t *mutex;
   // the data area
   char* data;
   // pointer
   struct p2p_pieceEntry* next;
+  // restart flag
+  int restart;
+  // sigint to terminate
+  int sigint;
+  // piece cnt
+  int pCnt;
 }pEntry;
 
 void* p2p_listening(void* arg);
@@ -98,35 +110,19 @@ int addMyPieces2pTable(pEntry* myPieces);
 pEntry* getMyPieces(char* name);
 int writePieceData(pEntry* myPieces, char* piece, int pNum);
 int rmMyPieces(pEntry* myPieces);
+int terminateMyPieces(pEntry* myPieces);
 int  handleUpdateOrDelete(pEntry* myPieces);
+int getIPFromFTE(char* peerIP, pEntry* myPieces, Node* fte);
+int peer_use(pEntry* myPieces, char* ip);
+peer_rm(myPieces, req->destIP);
 
 // thread related functions
 int startUpThread(pthread_t* tTable, int sockfd);
-int startDownThread(pEntry* myPieces, void* arg);
+int startDownThread(pEntry* myPieces);
 
 // P2PInfo related
 int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP, char* myIP);
 
-// /**********some temporate stuff for testing************/
-// //each file can be represented as a node in file table
-// typedef struct node{
-// //the size of the file
-//   int size;
-// //the name of the file
-//   char *name;
-// //the timestamp when the file is modified or created
-//   unsigned long int timestamp;
-// //pointer to build the linked list
-//   struct node *pNext;
-// //for the file table on peers, it is the ip address of the peer
-// //for the file table on tracker, it records the ip of all peers which has the
-// //newest edition of the file
-//   char *newpeerip;
-// }Node,*pNode;
-
-// int getPeerIPFromFT(char* peerIP, char* filename);
-// void peer_table_add(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
-// void peer_table_rm(char* ip, char* name, unsigned long timestamp, int downSock, int reqSock);
 
 
 #endif

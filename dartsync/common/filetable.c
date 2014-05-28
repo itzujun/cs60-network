@@ -55,13 +55,15 @@ Node* findFileEntryByName(char * name){
 void updateFileEntry(Node* oldEntry, Node * newEntry){
  	pthread_mutex_lock(file_table_mutex);
  	//memcpy(oldEntry, newEntry, sizeof(Node));
-	printf("updateFileEntry %s\n",newEntry->name);
+	printf("updateFileEntry %s\n", newEntry->name);
 	strcpy(oldEntry->name, newEntry->name);
 	oldEntry->size = newEntry->size;
 	strcpy(oldEntry->md5, newEntry->md5);
 	oldEntry->peer_ip_num = newEntry->peer_ip_num;
-	oldEntry -> status = newEntry -> status;
-	oldEntry -> action_time = newEntry -> action_time;
+	if(oldEntry -> status != UPDATING) {
+	  oldEntry -> status = newEntry -> status;
+	  oldEntry -> action_time = newEntry -> action_time;
+	}
 	memcpy(oldEntry->newpeerip,newEntry->newpeerip, MAX_PEER_NUM * IP_LEN);
  	pthread_mutex_unlock(file_table_mutex);
 	printFileTable();
@@ -145,7 +147,7 @@ void printFileTable(){
  	pthread_mutex_lock(file_table_mutex);
 	Node * itr = filetable_head;
 	while(itr != NULL){
-		printf(" name: %s\tsize: %8d\tmd5: %s\tpeer_ip_num: %d\t status: %d\t", itr->name, itr ->size,itr->md5,itr->peer_ip_num, itr->status);
+		printf(" name: %s\tsize: %8d\tmd5: %s\tpeer_ip_num: %d\t status: %d\t act_time: %lu\t", itr->name, itr ->size,itr->md5,itr->peer_ip_num, itr->status, itr->action_time);
 		int i;
 		for(i =0; i<itr->peer_ip_num;i++){
 			printf("newpeerip[%d]: %s\t",i,itr->newpeerip[i]);

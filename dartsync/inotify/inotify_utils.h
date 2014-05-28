@@ -12,6 +12,6 @@ int watch_dir (int fd,  char *dirname, unsigned long mask);
 int ignore_wd (int fd, int wd);
 int close_inotify_fd (int fd);
 int open_inotify_fd ();
-Node* createNode(char *cur_event_filename,int status);
+Node* createNode(char *cur_event_filename,int status, unsigned long act_time);
 unsigned long getCurrentTime();
 #endif

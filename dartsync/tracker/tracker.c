@@ -32,7 +32,8 @@ void updateFileTable(ptp_peer_t * pkt){
   printf("filetable size: %d\n", pkt -> file_table_size);
   int k = 0;
   for(k = 0; k < pkt -> file_table_size; k++){
-      printf("file name: %s, file size: %d, md5: %s, status: %d\n", pkt->file_table[k].name, pkt->file_table[k].size, pkt->file_table[k].md5, pkt->file_table[k].status);
+      printf("file name: %s, file size: %d, md5: %s, status: %d, act_time: %lu\n", pkt->file_table[k].name, pkt->file_table[k].size, pkt->file_table[k].md5, pkt->file_table[k].status
+								, pkt->file_table[k].action_time);
   }
 	Node * itr = filetable_head;
 	int numOfFiles = pkt -> file_table_size;
@@ -177,6 +178,7 @@ void broadcastFileTable(char * pktFromIp){
 	int i = 0;
 	pthread_mutex_lock(file_table_mutex);
 	while(itr != NULL){
+	  printf(">>>>>>>>>> copy entry %d for file %s broadcast\n", i, itr->name);
 		memcpy(&(pkt -> file_table[i]), itr, sizeof(Node));
 		i++;
 		itr = itr -> pNext; 

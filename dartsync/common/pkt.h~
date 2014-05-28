@@ -1,6 +1,7 @@
 #ifndef PKT_H
 #define PKT_H
-
+#include "peertable.h"
+#include "filetable.h"
 
 #define REGISTER 0
 #define KEEPALIVE 1
@@ -50,6 +51,6 @@ int sendPkt(int connfd, ptp_tracker_t * pkt);
 int sendPkt_c(int connfd, ptp_peer_t * pkt);
 int recvPkt_c(int connfd, ptp_tracker_t * pkt);
 
-int p2pSendPkt(int connfd, char * pkt, int len);
-int p2pRecvPkt(int connfd, char * pkt, int len);
+int p2pSendPkt2(int connfd, char * pkt, int len);
+int p2pRecvPkt2(int connfd, char * pkt, int len);
 #endif

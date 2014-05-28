@@ -143,7 +143,7 @@ void handle_event (queue_entry_t event)
       if(strcmp(cur_event_file_or_dir,"Dir") == 0){
 	      watch_dir(inotify_fd,cur_event_filename,IN_ALL_EVENTS);
       }else{
-        Node* newEntry = createNode(cur_event_filename, DONE);
+        Node* newEntry = createNode(cur_event_filename, DONE, getCurrentTime());
         if(newEntry!=NULL){
         		appendFileEntry(newEntry);
 		        //needUpdate =1;
@@ -170,11 +170,11 @@ void handle_event (queue_entry_t event)
       printf ("CLOSE_WRITE: %s \"%s\" on WD #%i\n",
 	      cur_event_file_or_dir, cur_event_filename, cur_event_wd);
       if(strcmp(cur_event_file_or_dir,"File") == 0){
-	      Node* newEntry = createNode(cur_event_filename,DONE);
+	      Node* newEntry = createNode(cur_event_filename,DONE, getCurrentTime());
 	      if(newEntry!=NULL){
 		      Node* np = findFileEntryByName(newEntry->name);
 	              if(np == NULL || (np != NULL && strcmp(np->md5,newEntry->md5) == 0))
-			    return;
+			            return;
 	      	      updateFileEntry(np, newEntry);
 	      	      sendFileUpdate();
 			          //needUpdate = 1;
@@ -366,7 +366,7 @@ int watch_dir (int fd, char *dirname, unsigned long mask)
 			strcat(curdir,ent->d_name);
 			if(ent->d_type == 8)      {           // d_type：8-文件，4-目录  
 			//	free(newEntry);
-	      			Node* newEntry = createNode(curdir, DONE);
+	      			Node* newEntry = createNode(curdir, DONE, getCurrentTime());
 	      			if(newEntry!=NULL){
 	      				appendFileEntry(newEntry);
 				}
@@ -399,7 +399,7 @@ int ignore_wd (int fd, int wd)
   return r;
 }
 
-Node* createNode(char *cur_event_filename,int status){
+Node* createNode(char *cur_event_filename,int status, unsigned long act_time){
 	      struct stat mystat;
 	      bzero(&mystat, sizeof(struct stat));
 	      if(stat(cur_event_filename, &mystat)<0){
@@ -427,17 +427,9 @@ Node* createNode(char *cur_event_filename,int status){
 	      memcpy(newEntry->newpeerip, my_ip,IP_LEN);
 	      newEntry->peer_ip_num=1;
 	      newEntry->status = status;
-	      newEntry->action_time = getCurrentTime();
+	      newEntry->action_time = act_time;
 	      return newEntry;
 }
-
-
-const char *get_filename_ext(const char *filename) {
-    const char *dot = strrchr(filename, '.');
-    if(!dot || dot == filename) return "";
-    return dot + 1;
-}
-
 
 
 

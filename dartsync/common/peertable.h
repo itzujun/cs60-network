@@ -2,6 +2,8 @@
 #define PEERTABLE_H
 #include "constants.h"
 #include <pthread.h>
+
+typedef struct timespec TS;
 //Peer-side peer table.
 typedef struct _peer_side_peer_t {
 	// Remote peer IP address, 16 bytes.
@@ -14,6 +16,8 @@ typedef struct _peer_side_peer_t {
 	int sockfd;
 	//Pointer to the next peer, linked list.
 	struct _peer_side_peer_t *next;
+	// timestamp
+	TS time;
 } peer_peer_t;
 
 
@@ -55,9 +59,11 @@ void printPeerTable();
 
 int updatePeerTimeStamp(char* pkt, unsigned long timestamp);
 void initPeerPeerTable();
+void printPeerPeerTable();
 
 // two peer side peer table functions added by junjie
 void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock);
 peer_peer_t* peer_peertable_rm(char* ip, char* name);
 int peer_peertable_found(char* ip, char* name);
+peer_peer_t* peer_peertable_rm_nolock(char*ip,char*name);
 #endif

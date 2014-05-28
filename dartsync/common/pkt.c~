@@ -191,7 +191,7 @@ char*get_from_config(char* attr){
 	return NULL;
 }
 
-int p2pSendPkt(int connfd, char * pkt, int len){
+int p2pSendPkt2(int connfd, char * pkt, int len){
 	char bufstart[2];
 	char bufend[2];
 	bufstart[0] = '!';
@@ -210,7 +210,7 @@ int p2pSendPkt(int connfd, char * pkt, int len){
 	return 1;
 }
 
-int p2pRecvPkt(int connfd, char * pkt, int len){
+int p2pRecvPkt2(int connfd, char * pkt, int len){
 	char buf[sizeof(ptp_peer_t)+2]; 
 	char c;
 	int idx = 0;
@@ -247,7 +247,7 @@ int p2pRecvPkt(int connfd, char * pkt, int len){
 			if(c=='#') {
 				buf[idx]=c;
 				idx++;
-				memcpy(pkt,buf,PIECE_SIZE);
+				memcpy(pkt,buf,len);
 				state = 0;
 				idx = 0;
 				return 1;

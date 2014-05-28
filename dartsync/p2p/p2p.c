@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
 #include "p2p.h"
 #define MAXLINE 100
 #define _GNU_SOURCE             /* See feature_test_macros(7) */
@@ -34,8 +35,9 @@ steps:
   create p2p_upload thread with coressponding file, peiceSeqNum and remote specified port;
 */
 void* p2p_listening(void* arg) {
+  pthread_detach(pthread_self());
 	ptable_mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
-        pthread_mutex_init(ptable_mutex, NULL);
+  pthread_mutex_init(ptable_mutex, NULL);
 
   int listenSock = listenSock_setup(P2P_LISTENING_PORT);
   int reqSock;
@@ -52,33 +54,16 @@ void* p2p_listening(void* arg) {
   bzero(&upThreads, sizeof(pthread_t) * MAX_THREAD_NUM);
   printf("%s:\t\t START LISTENING...\n", __func__);
   while(!EXIT_SIG) {
-    //printf("%s:\t\t KEEP LISTENING...\n", __func__);
-    reqSock = accept(listenSock, (struct sockaddr*) &client_addr, &length);
-    if (reqSock < 0) {
-      fprintf(stderr, "--err in file %s func %s: \n----server accept failed!\n"
-        , __FILE__, __func__);
-      return NULL;
-    }
-/*
-*/
-    //printf("%s:\t\t REQUEST RECEVIED FROM SOCK %d\n", __func__, reqSock);
-    if(startUpThread(upThreads, reqSock) < 0) {
-      fprintf(stderr, "--warning in file %s func %s: \n----no avaiable thread slots.\n"
-        , __FILE__, __func__);
-      continue;
-    }
-  // upthreadCnt = (upthreadCnt + 1) % MAX_THREAD_NUM;
-  // if (pthread_create(upThreads + upthreadCnt), NULL,
-  //     (void *) p2p_upload, (void *) recvBuff) != 0) {
-  //   fprintf(stderr, "--warning in file %s func %s: \n----creat %dth thread fail.\n"
-  //     , __FILE__, __func__, upthreadCnt);
-  //   continue;
-  // }
-
-    //printf("%s:\t\t UPLOAD THREAD CREATED\n", __func__);
+      reqSock = accept(listenSock, (struct sockaddr*) &client_addr, &length);
+      if (reqSock < 0) {
+        fprintf(stderr, "--err in file %s func %s: \n----server accept failed!\n"
+          , __FILE__, __func__);
+        return NULL;
+      }
+      pthread_t newThread;
+      pthread_create(&newThread, NULL, (void *) p2p_upload, (void *) &reqSock);
+      printf("start p2p_upload thread for sockfd %d\n",reqSock);
   }
-
-  close(reqSock);
   return NULL;
 }
 
@@ -93,40 +78,43 @@ steps:
   send handshake to server use the file_monitor module built in function;
 */
 void* p2p_download(void* arg) {
-  P2PInfo* req = (P2PInfo*)arg;
-  pEntry* myPieces;
+  pthread_detach(pthread_self());
+  pEntry* myPieces = (pEntry*)arg;
+  P2PInfo* req = myPieces->req;
   char* piece = malloc(PIECE_SIZE);
   int reqSock;
-
-  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d WITH IP %s STARTED\n", __func__, req->name, req->pNum, req->destIP);
-
-
-  if((myPieces = getMyPieces(req->name)) == NULL) {
-    fprintf(stderr, "--err in file %s func %s: \n----getMyPieces fail.\n"
-      , __FILE__, __func__); 
-    return NULL;
-  }
-  myPieces->pieces[req->pNum] = DOWNLOADING;
-
-  // find a port that is available
-  /*if(getAvailablePort(&listenSock, &req->srcPort) < 0) {
-    fprintf(stderr, "--err in file %s func %s: \n----getAvailablePort fail.\n"
-      , __FILE__, __func__); 
-    return NULL;
-  }*/
-
+  
+  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d WITH IP %s START\n", __func__, req->name, req->pNum, req->destIP);
   if((reqSock = connectToRemote(req->destIP, req->destPort)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n----connectToRemote fail.\n"
       , __FILE__, __func__); 
     close(reqSock);
+    myPieces->pieces[req->pNum] = UNTOUCHED;
+    //peer_peertable_rm(req->destIP, req->name);
+    peer_rm(myPieces, req->destIP);
     return NULL;
   }
   
-
-  if ( (p2pSendPkt(reqSock, (char*)req, sizeof(P2PInfo)) ) < 0) {
+  /*printf("%s:\t\t FILE %s PIECE %d WITH IP %s WAIT FOR READY SIG\n", __func__, req->name, req->pNum, req->destIP);
+  if ( (p2pRecvPkt(reqSock, msg, 128) ) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n----send request of file %s piece %d to %s fail.\n"
       , __FILE__, __func__, req->name, req->pNum, req->destIP); 
     close(reqSock);
+    myPieces->pieces[req->pNum] = UNTOUCHED;
+    peer_peertable_rm(req->destIP, req->name);
+    return NULL;
+  }
+  if( (strcmp(msg, "READY")) == 0)
+    printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d WITH IP %s READY SIGNAL GET\n", __func__, req->name, req->pNum, req->destIP);
+*/
+
+  if ( (send(reqSock, (char*)req, sizeof(P2PInfo), 0) ) < 0) {
+    fprintf(stderr, "--err in file %s func %s: \n----send request of file %s piece %d to %s fail.\n"
+      , __FILE__, __func__, req->name, req->pNum, req->destIP); 
+    close(reqSock);
+    myPieces->pieces[req->pNum] = UNTOUCHED;
+    //peer_peertable_rm(req->destIP, req->name);
+    peer_rm(myPieces, req->destIP);
     return NULL;
   }
 
@@ -139,20 +127,22 @@ void* p2p_download(void* arg) {
     return NULL;
   }
 */
-  peer_peertable_add(req->destIP, req->name, req->file_time_stamp, reqSock);
+  
 
   int pieceLen = PIECE_SIZE;
   if((req->pNum + 1) * PIECE_SIZE > req->size)
     pieceLen = req->size - (req->pNum) * PIECE_SIZE;
 
-  if((p2pRecvPkt(reqSock, piece, pieceLen) )< 0) {
-    fprintf(stderr, "--err in file %s func %s: \n----recv name %s piece %d from %s fail.\n"
+  if((recv(reqSock, piece, pieceLen, 0) )< 0) {
+    fprintf(stderr, "--err in file %s func %s: \n----recv data name %s piece %d from %s fail.\n"
       , __FILE__, __func__, req->name, req->pNum, req->destIP);
     close(reqSock);
-    peer_peertable_rm(req->destIP, req->name);
+    myPieces->pieces[req->pNum] = UNTOUCHED;
+    //peer_peertable_rm(req->destIP, req->name);
+    peer_rm(myPieces, req->destIP);
     return NULL;
   }
-  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d GET:\n%s\n", __func__, req->name, req->pNum, piece);
+  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d\n", __func__, req->name, req->pNum);
 
   /*
   req->type = REQFIN;
@@ -163,14 +153,15 @@ void* p2p_download(void* arg) {
     return NULL;
   }
 */
+  peer_rm(myPieces, req->destIP);
+  //peer_peertable_rm(req->destIP, req->name);
   writePieceData(myPieces, piece, req->pNum);
-
   myPieces->pieces[req->pNum] = P2PDONE;
+  pthread_mutex_lock(myPieces->mutex);
   myPieces->piecesDone++;
-
-  peer_peertable_rm(req->destIP, req->name);
-  printf("%s:\t\t DOWNLOAD THREAD FOR %dth PIECE FINISH\n", __func__, req->pNum);
-  free(req);
+  pthread_mutex_unlock(myPieces->mutex);
+  
+  printf("%s:\t\t DOWNLOAD THREAD FOR FILE %s PIECE %d END, %d/%d DONE\n", __func__, req->name, req->pNum, myPieces->piecesDone, myPieces->totalPieces);
     
   return NULL;
 }
@@ -181,6 +172,7 @@ steps:
   get piece and peer to download
 */
 void* p2p_download_start(void* arg) {
+  pthread_detach(pthread_self());
   fte = (Node*)arg;
   P2PInfo* req = (P2PInfo*)malloc(sizeof(P2PInfo));
   req->size = fte->size;
@@ -194,26 +186,37 @@ void* p2p_download_start(void* arg) {
   bzero(&downThreads, sizeof(pthread_t) * MAX_THREAD_NUM);
 
 // creat a new piece, return the piece pointer
-  handleUpdateOrDelete(myPieces);
-  initMyPieces(myPieces, req);
-  addMyPieces2pTable(myPieces);
-
+  //handleUpdateOrDelete(myPieces);
+  if(initMyPieces(myPieces, req) < 0){
+      fprintf(stderr, "--warning in file %s func %s: \n----some one is doing something on file %s, try next time.\n"
+        , __FILE__, __func__, req->name); 
+      return NULL;
+  }
+  
+  printf("%s:\t\t FILE %s START TO DOWNLOAD>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.>.\n", __func__, myPieces->name);
 // start multi thread downloading
-  while(!EXIT_SIG && myPieces->piecesDone < myPieces->totalPieces ) {
+  while(!EXIT_SIG && myPieces->sigint != 1 && myPieces->piecesDone < myPieces->totalPieces ) {
   // @TODO: tell didi to implement it, 
   // get the next peer that is available, 
   // if no peer avaiable, sleep and wait
-    printf("%s:\t\t %d/%d PIECES DONE FOR FILE %s!\n", __func__, myPieces->piecesDone, myPieces->totalPieces, myPieces->name);
+    
     if( getPieceToTransfer(&pNum, myPieces) < 0){
       //printf("%s:\t\t NO PIECE AVAILABLE, WAIT %ds\n", __func__, WAIT_PIECE_INTERVAL);
+      
       sleep(WAIT_PIECE_INTERVAL);
       continue;
     }
-
-   if(getIPFromFfiletable(peerIP, req->name, fte) < 0){
+    printf("%s:\t\t FILE %s GET pNUM %d\n", __func__, myPieces->name, pNum);
+    
+    if(getIPFromFTE(peerIP, myPieces, fte) < 0){
+      printf("%s:\t\t NO IP FOR FILE %s pNUM %d:\n", __func__, myPieces->name, pNum);
       sleep(WAIT_PEER_INTERVAL);
       continue;
     }
+    memcpy(myPieces->peerIPs[pNum], peerIP, IP_LEN);
+        
+    printf("%s:\t\t FILE %s GET IP %s\n", __func__, myPieces->name, peerIP);
+    //peer_peertable_add(peerIP, req->name, req->file_time_stamp, -1);
 
     getMyIp(myIp);
     if(myIp == NULL) {
@@ -222,45 +225,36 @@ void* p2p_download_start(void* arg) {
       continue;
     }
     
-    P2PInfo* newReq = (P2PInfo*)malloc(sizeof (P2PInfo));
+    P2PInfo* newReq = myPieces->req;
     bzero(newReq, sizeof(P2PInfo));
     initNewReq(newReq, req, pNum, peerIP, myIp);
 
-    if((startDownThread(myPieces, newReq)) < 0) {
+    if((startDownThread(myPieces)) < 0) {
       fprintf(stderr, "--warning in file %s func %s: \n----no avaiable thread slots.\n"
         , __FILE__, __func__); 
+      myPieces->pieces[pNum] = UNTOUCHED;
+      peer_rm(myPieces, req->destIP);
       sleep(WAIT_THREAD_INTERVAL);
       continue;
     }
 
-    sleep(WAIT_FOR_THREAD_START);
+    printf("%s:\t\t %d/%d PIECES DONE FOR FILE %s!\n", __func__, myPieces->piecesDone, myPieces->totalPieces, myPieces->name);
   }
   
-  if(p2p_assemble(myPieces)) {
+  if(myPieces->sigint == 1) {
+  // if it is terminated, handle it
+    terminateMyPieces(myPieces);
+    printf("%s:\t\t FILE %s TERMINATE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", __func__, myPieces->name);
+  } else if(p2p_assemble(myPieces)) {
+  // if finished assemble it
   // @TODO: trigger the file monitor handshake
-    printf("%s:\t\t FILE %s GET!\n", __func__, myPieces->name);
+    printf("%s:\t\t FILE %s GET!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", __func__, myPieces->name);
   }
   rmMyPieces(myPieces);
-
-	FILE * fp;
-	char buffer[80],cmd[80];
-	bzero(buffer, 80);
-	strcpy(cmd,"/usr/bin/md5sum");
-	strcat(cmd," ");
-	strcat(cmd,req->name);
-	if((fp = popen(cmd, "r") )<0)
-		      return NULL;
-	fgets(buffer,sizeof(buffer),fp);
-	printf("%s",buffer);
-	pclose(fp);
-	
-	if(strncmp(buffer, fte->md5, MD5_LEN) != 0){
-		//printf("first md5: %s\n second md5: %s\n", buffer, fte->md5);
-		//printf("%s:\t\t MD5 NOT MATCH!!!!\n", __func__);
-	}
   
   //free(fte);
   free(req);
+  
   return NULL;
 }
 
@@ -272,16 +266,25 @@ steps:
   wait for file fin signal;
 */
 void* p2p_upload(void* arg) {
+  pthread_detach(pthread_self());
   int* uploadSock = (int*)arg;
   char * piece = malloc(PIECE_SIZE);
   bzero(piece,PIECE_SIZE);
   P2PInfo* req = (P2PInfo*)malloc(sizeof(P2PInfo));
   bzero(req,sizeof(P2PInfo));
 
-    if((p2pRecvPkt(*uploadSock, (char*)req, sizeof(P2PInfo)) )< 0) {
+    /*strcpy(msg, "READY");
+    if((p2pSendPkt(*uploadSock, msg, 128) )< 0) {
       fprintf(stderr, "--warning in file %s func %s: \n----recv fail for file %s piece %d.\n"
         , __FILE__, __func__, req->name, req->pNum);
-      //return NULL;
+      return NULL;
+    }*/
+    
+    printf("%s:\t\t READY TO GET REQ\n", __func__);
+    if((recv(*uploadSock, (char*)req, sizeof(P2PInfo), 0) ) < 0) {
+      fprintf(stderr, "--warning in file %s func %s: \n----recv fail for file %s piece %d.\n"
+        , __FILE__, __func__, req->name, req->pNum);
+      return NULL;
     }
 
     printf("%s:\t\t GET REQUEST FOR FILE %s PIECE %d\n", __func__, req->name, req->pNum);
@@ -289,9 +292,7 @@ void* p2p_upload(void* arg) {
     if(check_P2PMsg((char*)req) < 0) {
       fprintf(stderr, "--warning in file %s func %s: \n----P2PInfo instead of junk expected.\n"
         , __FILE__, __func__); 
-     
-      //return NULL;
-
+      return NULL;
     } 
 
   /*if((uploadSock = connectToRemote(req->srcIP, req->srcPort)) < 0) {
@@ -308,13 +309,14 @@ void* p2p_upload(void* arg) {
     close(*uploadSock);
     return NULL;
   }
-  printf("%s:\t\t GET FILE %s PIECE %d TO SEND:\n%s\n", __func__, req->name, req->pNum, piece);
+  printf("get file piece %d\n", req->pNum);
+  //printf("%s:\t\t GET FILE %s PIECE %d TO SEND:\n%s\n", __func__, req->name, req->pNum, piece);
 
   int pieceLen = PIECE_SIZE;
   if((req->pNum + 1) * PIECE_SIZE > req->size)
     pieceLen = req->size - (req->pNum) * PIECE_SIZE;
 
-  if( (p2pSendPkt(*uploadSock, piece, pieceLen)) < 0) {
+  if( (send(*uploadSock, piece, pieceLen, 0)) < 0) {
     fprintf(stderr, "--err in file %s func %s: \n----send file %s piece %d to %s fail.\n"
       , __FILE__, __func__, req->name, req->pNum, req->srcIP); 
     close(*uploadSock);
@@ -357,6 +359,17 @@ int p2p_assemble(pEntry* myPieces) {
   char tmpfilename[1024], number[5];
   FILE *ofp, *ifp;
   int i, size;
+
+  /*pthread_mutex_lock(myPieces->mutex);
+  myPieces->cnt++;
+  pthread_mutex_unlock(myPieces->mutex);
+  
+  if(myPieces->cnt > 1){
+    fprintf(stderr, "--err in file %s func %s: \n---- should not assemble file %s for the %dth time.\n"
+        , __FILE__, __func__, myPieces->name, myPieces->cnt);
+    return -1;
+  }*/
+
   myPieces->data = (char*)malloc(myPieces->size);
   bzero(myPieces->data, myPieces->size);
   
@@ -371,8 +384,8 @@ int p2p_assemble(pEntry* myPieces) {
     strcat(tmpfilename, ".tmp");
   
     while(!EXIT_SIG && (ifp = fopen(tmpfilename, "r")) == NULL) {
-      fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
-        , __FILE__, __func__, myPieces->name, OPEN_FILE_TIMEOUT);
+    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail with code %d: %s, retry %d later.\n"
+        , __FILE__, __func__, myPieces->name, errno, strerror(errno), OPEN_FILE_TIMEOUT);
       sleep(OPEN_FILE_TIMEOUT);
     }
 
@@ -384,13 +397,15 @@ int p2p_assemble(pEntry* myPieces) {
     }
 
     fclose (ifp);
-    remove(tmpfilename);
+    if(remove(tmpfilename)){
+      printf("%s:\t\t FILE %s PIECE %d ASSEMBLED\n", __func__, myPieces->name, i);
+    }
     printf("%s:\t\t FILE %s PIECE %d ASSEMBLED\n", __func__, myPieces->name, i);
   }
 
   while(!EXIT_SIG && (ofp = fopen(myPieces->name, "w")) == NULL) {
-    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
-      , __FILE__, __func__, myPieces->name, OPEN_FILE_TIMEOUT);
+    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail with code %d: %s, retry %d later.\n"
+        , __FILE__, __func__, myPieces->name, errno, strerror(errno), OPEN_FILE_TIMEOUT);
     sleep(OPEN_FILE_TIMEOUT);
   }
 
@@ -411,12 +426,34 @@ int p2p_assemble(pEntry* myPieces) {
   	pthread_mutex_unlock(file_table_mutex);
   }
 
+  printf("%s:\t\t ASSEMBLE FILE %s DONE\n", __func__, myPieces->name);
   return 1;
 }
 
 /****************************************************
 ******************helper functions*******************
 *****************************************************/
+
+int terminateMyPieces(pEntry* myPieces) {
+  /*int i;//, totalPieces;
+  //char number[5], tmpfilename[1024];
+  for(i = 0; i < myPieces->totalPieces; i++) {
+    printf("%s:\t\t TERMINATING %d PIECE\n", __func__, i);
+    pthread_join((pthread_t)(myPieces->threads + i), NULL);
+  }*/
+  // current design: not remove those tmp files;
+  /*
+  for(i = 0; i < totalPieces; i++) {
+    sprintf(number,"%d",i);
+    strcat(tmpfilename, myPieces->name);
+    strcat(tmpfilename, ".");
+    strcat(tmpfilename, number);
+    strcat(tmpfilename, ".tmp");
+    remove(tmpfilename);
+  }*/
+  printf("%s:\t\t TERMINATING FILE DOWNLOAD %s\n", __func__, myPieces->name);
+  return 1;
+}
 
 // handle situation where new status come while downloading
 int  handleUpdateOrDelete(pEntry* myPieces) {
@@ -457,20 +494,36 @@ int initMyPieces(pEntry* myPieces, P2PInfo* req) {
   myPieces->req =  (P2PInfo*)malloc(sizeof(P2PInfo));
   memcpy(myPieces->req, req, sizeof(P2PInfo));
   myPieces->pieces = (int*)malloc(sizeof(int) * totalPieces);
+  myPieces->pTimes = (TS*)malloc(sizeof(TS) * totalPieces);  
   myPieces->threads = (pthread_t*)malloc(sizeof(pthread_t) * totalPieces);
-  
+	myPieces->mutex = (pthread_mutex_t*) malloc(sizeof(pthread_mutex_t));
+  pthread_mutex_init(myPieces->mutex, NULL);
   myPieces->next = NULL;
+  myPieces->restart = 0;
+  myPieces->sigint = 0;
+  myPieces->pCnt = -1;
+  myPieces->peerIPs = (char**) malloc(sizeof(char*) * totalPieces);
   for(i = 0; i < totalPieces; i++) {
-    sprintf(number,"%d",i);
-    strcat(tmpfilename, myPieces->name);
-    strcat(tmpfilename, ".");
-    strcat(tmpfilename, number);
-    strcat(tmpfilename, ".tmp");
-    if( (access (tmpfilename, F_OK)) == 0 )
-      myPieces->pieces[i] = DONE;
-    else
-      myPieces->pieces[i] = UNTOUCHED;
+    myPieces->peerIPs[i] = (char*)malloc(IP_LEN);
+    myPieces->pieces[i] = UNTOUCHED;
   }
+
+  if(addMyPieces2pTable(myPieces) < 0)
+    return -1;
+  // recontinue from partial download
+  if(myPieces->restart == 1) {
+    sleep(PDOWN_TIME_OUT);
+    for(i = 0; i < totalPieces; i++) {
+      sprintf(number,"%d",i);
+      strcat(tmpfilename, myPieces->name);
+      strcat(tmpfilename, ".");
+      strcat(tmpfilename, number);
+      strcat(tmpfilename, ".tmp");
+      if( (access (tmpfilename, F_OK)) == 0 )
+        myPieces->pieces[i] = DONE;
+    }
+  }
+  
   printf("%s:\t\t MYPIECES CREATED FOR SYNC, NAME %s, SIZE %dB, %d PIECES\n", __func__, myPieces->name, myPieces->size, myPieces->totalPieces);
   return 1;
 }
@@ -481,8 +534,19 @@ int addMyPieces2pTable(pEntry* myPieces) {
   if(pPtr == NULL) {
     pTable = myPieces;
   } else {
-    while(pPtr->next != NULL)
+    while(pPtr->next != NULL) {
+      if(strcmp(pPtr->name, myPieces->name) == 0){
+        //pPtr->sigint = 1;
+        //myPieces->restart = 1;
+        return -1;
+      }
       pPtr = pPtr->next;
+    }
+    if(strcmp(pPtr->name, myPieces->name) == 0){
+      //pPtr->sigint = 1;
+      //myPieces->restart = 1;
+      return -1;
+    }
     pPtr->next = myPieces;
   }
   pthread_mutex_unlock(ptable_mutex);
@@ -543,8 +607,8 @@ int writePieceData(pEntry* myPieces, char* piece, int pNum) {
   strcat(tmpfilename, ".tmp");
 
   while(!EXIT_SIG && (ofp = fopen(tmpfilename, "wb")) == NULL) {
-    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail, retry %d later.\n"
-      , __FILE__, __func__, tmpfilename, OPEN_FILE_TIMEOUT);
+    fprintf(stderr, "--err in file %s func %s: \n----open file %s fail with code %d: %s, retry %d later.\n"
+        , __FILE__, __func__, myPieces->name, errno, strerror(errno), OPEN_FILE_TIMEOUT);
     sleep(OPEN_FILE_TIMEOUT);
   }
 
@@ -558,35 +622,17 @@ int writePieceData(pEntry* myPieces, char* piece, int pNum) {
   return 1;
 }
 
-int startUpThread(pthread_t* tTable, int sockfd) {
-  int tryNum = 0;
-  while (pthread_create((tTable + upthreadCnt), NULL, (void *) p2p_upload, (void *) &sockfd) != 0 
-    && tryNum < MAX_THREAD_NUM) {
-  fprintf(stderr, "--warning in file %s func %s: \n----creat %dth thread fail.\n"
-    , __FILE__, __func__, upthreadCnt);
-  tryNum++;
-  upthreadCnt = (upthreadCnt + 1) % MAX_THREAD_NUM;
-}
 
-if(tryNum < MAX_THREAD_NUM){
-    upthreadCnt = (upthreadCnt + 1) % MAX_THREAD_NUM; // move to next slot
-    printf("%s:\t\t UPLOADTHREAD AT SLOT[%d] CREATED \n", __func__, upthreadCnt);
-    return 1;
-  }
-printf("start p2p_upload thread for sockfd %d\n",sockfd);
 
-  return -1;
-}
-
-int startDownThread(pEntry* myPieces, void* arg) {
-  P2PInfo* req = (P2PInfo*)arg;
-  if (pthread_create((myPieces->threads + req->pNum), NULL, (void *) p2p_download, (void *) arg) != 0) {
+int startDownThread(pEntry* myPieces) {
+  P2PInfo* req = myPieces->req;
+  if (pthread_create((myPieces->threads + req->pNum), NULL, (void *) p2p_download, (void *) myPieces) != 0) {
     fprintf(stderr, "--warning in file %s func %s: \n----%dth piece create thread fail.\n"
       , __FILE__, __func__, req->pNum);
-  return -1;
-}
-//printf("start p2p_download thread for pNum %d\t \n",req->pNum );
-return 1;
+    return -1;
+  }
+  //printf("start p2p_download thread for pNum %d\t \n",req->pNum );
+  return 1;
 }
 
 int connectToRemote(char* ip, int port){
@@ -678,9 +724,27 @@ int getPieceFromFile(char* piece, P2PInfo* req) {
 }
 
 int getPieceToTransfer(int *pNum, pEntry* myPieces) {
-  int idx;
-  for(idx = 0; idx < myPieces->totalPieces; idx++) {
+  int idx, i;
+  TS curr = {0, 0};
+  clock_gettime(CLOCK_MONOTONIC, &curr);
+  pthread_mutex_lock(myPieces->mutex);
+  myPieces->pCnt = (myPieces->pCnt + 1) % myPieces->totalPieces;
+  pthread_mutex_unlock(myPieces->mutex);
+  for(i = 0; i < myPieces->totalPieces; i++) {
+    idx = (myPieces->pCnt + i) % myPieces->totalPieces;
     if(myPieces->pieces[idx] == UNTOUCHED ) {
+      *pNum = idx;
+      myPieces->pieces[*pNum] = DOWNLOADING;
+      myPieces->pTimes[*pNum] = curr;
+      return 1;
+    }
+    
+    //printf("%s:\t\t TIME DURATION %ds WITH STAT%d, pNUm %d\n", __func__, (int)( curr.tv_sec - myPieces->pTimes[idx].tv_sec), myPieces->pieces[idx], idx);
+    if(myPieces->pieces[idx] == DOWNLOADING 
+      && (int)( curr.tv_sec - myPieces->pTimes[idx].tv_sec) > PDOWN_TIME_OUT ) {
+      //pthread_cancel(myPieces->threads[*pNum]);
+      myPieces->pTimes[idx] = curr;
+      memset(myPieces->peerIPs[idx], 0, IP_LEN);
       *pNum = idx;
       return 1;
     }
@@ -693,6 +757,10 @@ int getPieceToTransfer(int *pNum, pEntry* myPieces) {
     // }
   }
   return -1;
+}
+
+unsigned long getSysTime(TS time){
+	return 0;
 }
 
 int initNewReq(P2PInfo* newReq, P2PInfo* req, int pNum, char* peerIP, char* myIP) {
@@ -811,13 +879,46 @@ int getMyIp(char *myip) {
 
 int check_P2PMsg(char* buff) {
   P2PInfo* req = (P2PInfo*)buff;
-  if(req->type != REQ 
-    && req->type != REQFIN 
-    && req->type != REREQ 
-    )
+  if(strlen(req->name) == 0)
     return -1;
   else
     return 1;
 }
+
+int getIPFromFTE(char* peerIP, pEntry* myPieces, Node* fte) {
+  Node* itr = fte;
+  int i;
+	for(i = 0; i < itr->peer_ip_num; i++ ) {
+		if(peer_use(myPieces, itr->newpeerip[i]) < 0) {
+			memcpy(peerIP, itr->newpeerip[i], IP_LEN);
+			return 1;
+		}
+		//printf("%s:\t\t IP %s FOR FILE %s IS CURRENTLY IN USE\n", __func__, itr->newpeerip[i], filename);
+	}
+	return -1;
+}
+
+int peer_use(pEntry* myPieces, char* ip) {
+  int i = 0;
+  for(; i < myPieces->totalPieces; i++) {
+    if(strcmp(myPieces->peerIPs[i], ip) == 0 )
+      return 1;
+  }
+  return -1;
+}
+
+int peer_rm(pEntry* myPieces, char* ip) {
+  int i = 0;
+  for(; i < myPieces->totalPieces; i++) {
+    if(strcmp(myPieces->peerIPs[i], ip) == 0 ){
+      memset(myPieces->peerIPs[i], 0, IP_LEN);
+      return 1;
+    }
+  }
+  return -1;
+}
+
+
+
 
 

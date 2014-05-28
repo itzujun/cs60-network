@@ -225,6 +225,7 @@ void peer_peertable_add(char* ip, char* name, unsigned long timestamp, int sock)
 	memcpy(newEntry -> ip, ip, IP_LEN); // set ip
 	newEntry -> file_time_stamp = timestamp;
 	newEntry -> sockfd = sock;
+	clock_gettime(CLOCK_MONOTONIC, &newEntry -> time);
 	newEntry -> next = NULL;
 
 	//append to peertable
@@ -271,6 +272,36 @@ peer_peer_t* peer_peertable_rm(char*ip,char*name){
 	else return pre->next;
 }
 
+peer_peer_t* peer_peertable_rm_nolock(char*ip,char*name){
+	printf("peer_peertable_rm  by ip:%s\tname:%s\n",ip,name);
+	peer_peer_t * itr = peer_peertable_head;
+	if(itr == NULL) return NULL;
+	peer_peer_t * pre = NULL,*cur = NULL;
+	while(itr != NULL){
+		if(strcmp(ip,itr->ip) ==0 && strcmp(name,itr->file_name) ==0 ){
+			if(itr == peer_peertable_head){
+				cur = itr;
+				peer_peertable_head = itr->next;
+				if(peer_peertable_head == NULL)
+					peer_peertable_tail = NULL;
+			}else{
+				cur = itr;
+				pre->next = itr->next;
+				if(itr == peer_peertable_tail)
+					peer_peertable_tail = pre;
+			}
+			free(cur);
+			break;
+		}
+		pre = itr;
+		itr = itr -> next;
+	}
+	printPeerPeerTable();
+	if (peer_peertable_head == NULL) return NULL;
+	if (pre == NULL) return peer_peertable_head;
+	else return pre->next;
+}
+
 /*
 void peer_peertable_rm(char* ip, char* name) {
 	peer_peer_t * ptr = peer_peertable_head;
@@ -307,20 +338,39 @@ void peer_peertable_rm(char* ip, char* name) {
 }
 */
 int peer_peertable_found(char* ip, char* name) { 
+  pthread_mutex_lock(peer_peertable_mutex);
+  TS curr = {0, 0};
+  clock_gettime(CLOCK_MONOTONIC, &curr);
 	peer_peer_t * ptr = peer_peertable_head;
 	if(peer_peertable_head == NULL) {
+	  pthread_mutex_unlock(peer_peertable_mutex);
     return -1;
 	}
-
-	pthread_mutex_lock(peer_peertable_mutex);
+	
+	while(ptr != NULL) {
+		if(strcmp(ptr->file_name, name) == 0 && memcmp(ptr->ip, ip, IP_LEN) ==0) {
+			if((int)( curr.tv_sec - ptr->time.tv_sec) > PDOWN_TIME_OUT){
+			  peer_peertable_rm_nolock(ptr->ip, ptr->file_name);
+			  pthread_mutex_unlock(peer_peertable_mutex);
+			  return -1;
+			}else{
+			  pthread_mutex_unlock(peer_peertable_mutex);
+			  return 0;
+			}
+		}
+		ptr = ptr->next;
+	}
+	pthread_mutex_unlock(peer_peertable_mutex);
+  return -1;
+  
+  
+  
+  
+  
+	/*pthread_mutex_lock(peer_peertable_mutex);
 	// if it is at the head
 	if(strcmp(ptr->file_name, name) == 0 && memcmp(ptr->ip, ip, IP_LEN)==0) {
 		// if there is only one in the list
-	/*	if(peer_peertable_head == peer_peertable_tail) 
-			peer_peertable_head = peer_peertable_tail = NULL;
-		else 
-			peer_peertable_head = peer_peertable_head->next;
-		free(ptr);*/
 		pthread_mutex_unlock(peer_peertable_mutex);
 		return 0;
 	}
@@ -335,5 +385,5 @@ int peer_peertable_found(char* ip, char* name) {
 		ptr = ptr->next;
 	}
 	pthread_mutex_unlock(peer_peertable_mutex);
-  return -1;
+  return -1;*/
 }
